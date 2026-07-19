@@ -75,6 +75,14 @@
             --donut-glow: 0px;
             --donut-anim-speed: 1.4s;
             --results-top-spacing: 16px;
+
+            /* Inputs/Selects dentro del panel de Layout Config */
+            --panel-input-bg: rgba(0,0,0,0.04);
+            --panel-input-text: #262626;
+        }
+        .dark {
+            --panel-input-bg: rgba(255,255,255,0.08);
+            --panel-input-text: #f5f5f5;
         }
 
         body { 
@@ -194,9 +202,13 @@
             left: 0;
             width: 100vw;
             height: 100vh;
-            background: black;
+            background: #ffffff;
             z-index: 999999;
             overflow: hidden;
+            transition: background 0.3s ease;
+        }
+        .dark #os-section {
+            background: #000000;
         }
 
         #os-canvas {
@@ -286,8 +298,34 @@
         .dark #layout-panel h3, .dark #layout-panel h4 { color: #f5f5f5; }
         #layout-panel label { color: #a3a3a3; font-size: 11px; font-weight: 500; margin-bottom: 2px; margin-top: 6px; display:block; }
         .dark #layout-panel label { color: #8a8a8a; }
-        #layout-panel input[type="range"] { width: 100%; accent-color: #FF8EBE; }
-        .dark #layout-panel input[type="range"] { accent-color: #a855f7; }
+        #layout-panel input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 6px;
+            border-radius: 999px;
+            background: rgba(0,0,0,0.08);
+            outline: none;
+            accent-color: #FF8EBE;
+            cursor: pointer;
+        }
+        .dark #layout-panel input[type="range"] { background: rgba(255,255,255,0.14); accent-color: #a855f7; }
+        #layout-panel input[type="range"]::-webkit-slider-runnable-track { height: 6px; border-radius: 999px; background: transparent; }
+        #layout-panel input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px; height: 16px; border-radius: 50%;
+            background: #FF8EBE; border: 2px solid #ffffff;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+            cursor: pointer; margin-top: -5px;
+        }
+        .dark #layout-panel input[type="range"]::-webkit-slider-thumb { background: #a855f7; border-color: #17141a; }
+        #layout-panel input[type="range"]::-moz-range-track { height: 6px; border-radius: 999px; background: rgba(0,0,0,0.08); }
+        .dark #layout-panel input[type="range"]::-moz-range-track { background: rgba(255,255,255,0.14); }
+        #layout-panel input[type="range"]::-moz-range-thumb {
+            width: 16px; height: 16px; border-radius: 50%;
+            background: #FF8EBE; border: 2px solid #ffffff; cursor: pointer;
+        }
+        .dark #layout-panel input[type="range"]::-moz-range-thumb { background: #a855f7; border-color: #17141a; }
         #layout-panel input[type="checkbox"] { accent-color: #FF8EBE; }
         .dark #layout-panel input[type="checkbox"] { accent-color: #a855f7; }
         #layout-panel input[type="text"], #layout-panel input[type="number"],
@@ -357,14 +395,22 @@
         #studio-toolbar #btn-restart-tt:hover { background: #fff1f2; }
         .dark #studio-toolbar #btn-restart-tt { background: rgba(23,23,23,0.8); border-color: rgba(244,63,94,0.4); color: #fb7185; }
         .dark #studio-toolbar #btn-restart-tt:hover { background: rgba(244,63,94,0.15); }
-        #studio-toolbar #btn-record-mode { background: #fff; border-color: #fed7aa; color: #ea580c; }
-        #studio-toolbar #btn-record-mode:hover { background: #fff7ed; }
-        .dark #studio-toolbar #btn-record-mode { background: rgba(23,23,23,0.8); border-color: rgba(234,88,12,0.4); color: #fb923c; }
-        .dark #studio-toolbar #btn-record-mode:hover { background: rgba(234,88,12,0.15); }
-        #studio-toolbar #btn-preview-results { background: #fff; border-color: #fde68a; color: #b45309; }
-        #studio-toolbar #btn-preview-results:hover { background: #fffbeb; }
-        .dark #studio-toolbar #btn-preview-results { background: rgba(23,23,23,0.8); border-color: rgba(217,119,6,0.4); color: #fbbf24; }
-        .dark #studio-toolbar #btn-preview-results:hover { background: rgba(217,119,6,0.15); }
+        #studio-toolbar #btn-record-mode { background: #fff; border-color: #e9d5ff; color: #7e22ce; }
+        #studio-toolbar #btn-record-mode:hover { background: #faf5ff; }
+        .dark #studio-toolbar #btn-record-mode { background: rgba(23,23,23,0.8); border-color: rgba(168,85,247,0.4); color: #c084fc; }
+        .dark #studio-toolbar #btn-record-mode:hover { background: rgba(168,85,247,0.15); }
+        #studio-toolbar #btn-preview-results { background: #fff; border-color: #e4e4e7; color: #52525b; }
+        #studio-toolbar #btn-preview-results:hover { background: #fafafa; }
+        .dark #studio-toolbar #btn-preview-results { background: rgba(23,23,23,0.8); border-color: rgba(161,161,170,0.35); color: #d4d4d8; }
+        .dark #studio-toolbar #btn-preview-results:hover { background: rgba(161,161,170,0.15); }
+
+        #layout-panel button.btn-save-layout {
+            background: #FF8EBE; border: 1px solid #FF8EBE; color: #fff !important;
+            margin-bottom: 10px; text-align: center;
+        }
+        #layout-panel button.btn-save-layout:hover { background: #ff7aaf; border-color: #ff7aaf; }
+        .dark #layout-panel button.btn-save-layout { background: #9333ea; border-color: #9333ea; }
+        .dark #layout-panel button.btn-save-layout:hover { background: #7e22ce; border-color: #7e22ce; }
 
         #btn-exit-recording {
             display: none; position: fixed; top: 20px; right: 20px;
@@ -1022,7 +1068,7 @@ Nal i jidgando jibeosamkin neol</textarea>
         <div id="btn-exit-recording" style="display: none;" onclick="exitRecordingMode()">✕</div>
 
         <div id="layout-panel">
-            <button class="btn-layout" style="background:#d97706; border-color:#d97706; color:#fff; margin-bottom:10px; text-align:center;" onclick="promptSaveLayout()">💾 Guardar Layout Actual</button>
+            <button class="btn-layout btn-save-layout" onclick="promptSaveLayout()">💾 Guardar Layout Actual</button>
             <h3>⚙ Layout Config</h3>
             <hr style="border-color: rgba(255,255,255,0.1); margin: 10px 0;">
 
@@ -1030,7 +1076,7 @@ Nal i jidgando jibeosamkin neol</textarea>
             <div id="record-delay-panel" style="display:none; margin-top:10px;">
                 <label>Delay de inicio del Preview (Segundos)</label>
                 <input type="range" id="slider-recording-delay" min="0" max="10" value="2" oninput="this.nextElementSibling.innerText=this.value+'s'">
-                <span class="text-xs text-amber-400 font-bold block mt-1">2s</span>
+                <span class="text-xs text-[#FF8EBE] dark:text-purple-400 font-bold block mt-1">2s</span>
                 <p style="font-size:10px; color:#aaa; margin-top:4px;">Da tiempo para que quites los popups del navegador al grabar pantalla.</p>
             </div>
 
@@ -1046,6 +1092,16 @@ Nal i jidgando jibeosamkin neol</textarea>
                 <label>Tamaño del Nombre</label>
                 <input type="range" id="slider-font-size" min="9" max="150" value="14" oninput="this.nextElementSibling.innerText=this.value+'px'; updateRankingVisualsLive();">
                 <span class="text-xs text-indigo-400 font-bold block mt-1">14px</span>
+
+                <label>Grosor de Letra</label>
+                <select id="select-font-weight" style="width:100%;" onchange="updateRankingVisualsLive(); updateResultsVisualsLive();">
+                    <option value="300">Light (300)</option>
+                    <option value="400">Regular (400)</option>
+                    <option value="500">Medium (500)</option>
+                    <option value="600">Semibold (600)</option>
+                    <option value="700" selected>Bold (700)</option>
+                    <option value="900">Black (900)</option>
+                </select>
 
                 <label>Tamaño del Avatar</label>
                 <input type="range" id="slider-avatar-size" min="18" max="300" value="48" oninput="this.nextElementSibling.innerText=this.value+'px'; updateRankingVisualsLive();">
@@ -1068,7 +1124,7 @@ Nal i jidgando jibeosamkin neol</textarea>
                 <label class="mt-2 text-pink-300">Color Título Resultados</label>
                 <div class="flex gap-2 mb-1">
                     <input type="color" id="resultados-title-color" value="#ffffff" oninput="document.documentElement.style.setProperty('--resultados-title-color', this.value); this.nextElementSibling.value = this.value" class="bg-transparent border-0 h-6 w-8 cursor-pointer">
-                    <input type="text" value="#ffffff" oninput="if(/^#[0-9A-Fa-f]{6}$/.test(this.value)){document.documentElement.style.setProperty('--resultados-title-color', this.value); this.previousElementSibling.value = this.value}" style="flex:1; padding:2px 4px; border-radius:4px; border:none; background:#222; color:white; outline:none; font-size:10px;">
+                    <input type="text" value="#ffffff" oninput="if(/^#[0-9A-Fa-f]{6}$/.test(this.value)){document.documentElement.style.setProperty('--resultados-title-color', this.value); this.previousElementSibling.value = this.value}" style="flex:1; padding:2px 4px; border-radius:4px; border:none; background:var(--panel-input-bg); color:var(--panel-input-text); outline:none; font-size:10px;">
                 </div>
 
                 <label>Separación Título a Dona</label>
@@ -1091,6 +1147,12 @@ Nal i jidgando jibeosamkin neol</textarea>
 
                 <label>Separación Interna Lista de Integrantes</label>
                 <input type="range" id="slider-results-inner" min="-50" max="50" value="0" oninput="updateResultsVisualsLive();">
+
+                <label class="mt-4 border-t border-gray-700 pt-2">Posiciones / Puestos</label>
+                <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
+                    <input type="checkbox" id="chk-show-positions" checked onchange="updateResultsVisualsLive();">
+                    <span style="font-size:11px; color:var(--panel-input-text);">Mostrar posición/puesto junto al nombre</span>
+                </div>
             </div>
 
             <button class="btn-layout" onclick="togglePanel('lyrics-custom-panel')">📝 Letras (Lyrics)</button>
@@ -1118,9 +1180,9 @@ Nal i jidgando jibeosamkin neol</textarea>
                 <label>Opacidad de Sombra</label>
                 <input type="range" id="slider-lyrics-shadow-opacity" min="0" max="1" step="0.1" value="0.8" oninput="document.documentElement.style.setProperty('--lyrics-shadow-opacity', this.value)">
 
-                <label class="mt-4 border-t border-gray-700 pt-2 text-amber-400 font-bold block">Ajuste Fino de Tiempo (Offset ms)</label>
+                <label class="mt-4 border-t border-gray-700 pt-2 text-[#FF8EBE] dark:text-purple-400 font-bold block">Ajuste Fino de Tiempo (Offset ms)</label>
                 <input type="range" id="slider-lyrics-offset" min="-500" max="500" value="0" oninput="this.nextElementSibling.innerText=this.value+' ms'; updateLyricsDynamicsLive();">
-                <span class="text-xs text-amber-400 font-bold block mt-1">0 ms</span>
+                <span class="text-xs text-[#FF8EBE] dark:text-purple-400 font-bold block mt-1">0 ms</span>
 
                 <label class="mt-2 block">Animación</label>
                 <select id="lyrics-animation" class="w-full bg-gray-800 rounded p-2 text-xs text-white outline-none">
@@ -1180,7 +1242,7 @@ Nal i jidgando jibeosamkin neol</textarea>
             <button class="btn-layout" onclick="togglePanel('header-tt-panel')">🎙️ Cabecera Line Distribution</button>
             <div id="header-tt-panel" style="display:none; margin-top:10px; flex-direction: column; gap: 8px;">
                 <label>Modo de Cabecera</label>
-                <select id="header-mode" onchange="updateHeaderMode()" style="width:100%; padding: 8px; border-radius: 8px; background: #222; color: white; border: none; outline: none; font-size:12px;">
+                <select id="header-mode" onchange="updateHeaderMode()" style="width:100%; padding: 8px; border-radius: 8px; background:var(--panel-input-bg); color:var(--panel-input-text); border: none; outline: none; font-size:12px;">
                     <option value="text">Mostrar Título Canción</option>
                     <option value="logo">Mostrar Logo PNG</option>
                     <option value="none">Ocultar Ambos</option>
@@ -1193,7 +1255,7 @@ Nal i jidgando jibeosamkin neol</textarea>
                     <label class="mt-2 text-indigo-300">Color Título</label>
                     <div class="flex gap-2 mb-1">
                         <input type="color" value="#ffffff" oninput="document.documentElement.style.setProperty('--tt-title-color', this.value); this.nextElementSibling.value = this.value" class="bg-transparent border-0 h-6 w-8 cursor-pointer">
-                        <input type="text" value="#ffffff" oninput="if(/^#[0-9A-Fa-f]{6}$/.test(this.value)){document.documentElement.style.setProperty('--tt-title-color', this.value); this.previousElementSibling.value = this.value}" style="flex:1; padding:2px 4px; border-radius:4px; border:none; background:#222; color:white; outline:none; font-size:10px;">
+                        <input type="text" value="#ffffff" oninput="if(/^#[0-9A-Fa-f]{6}$/.test(this.value)){document.documentElement.style.setProperty('--tt-title-color', this.value); this.previousElementSibling.value = this.value}" style="flex:1; padding:2px 4px; border-radius:4px; border:none; background:var(--panel-input-bg); color:var(--panel-input-text); outline:none; font-size:10px;">
                     </div>
                     <label>Tamaño Título</label>
                     <input type="range" min="10" max="120" value="18" oninput="document.documentElement.style.setProperty('--tt-title-size', this.value + 'px')">
@@ -1201,7 +1263,7 @@ Nal i jidgando jibeosamkin neol</textarea>
                     <label class="mt-2 text-pink-300">Color Subtítulo</label>
                     <div class="flex gap-2 mb-1">
                         <input type="color" value="#ff2d75" oninput="document.documentElement.style.setProperty('--tt-sub-color', this.value); this.nextElementSibling.value = this.value" class="bg-transparent border-0 h-6 w-8 cursor-pointer">
-                        <input type="text" value="#ff2d75" oninput="if(/^#[0-9A-Fa-f]{6}$/.test(this.value)){document.documentElement.style.setProperty('--tt-sub-color', this.value); this.previousElementSibling.value = this.value}" style="flex:1; padding:2px 4px; border-radius:4px; border:none; background:#222; color:white; outline:none; font-size:10px;">
+                        <input type="text" value="#ff2d75" oninput="if(/^#[0-9A-Fa-f]{6}$/.test(this.value)){document.documentElement.style.setProperty('--tt-sub-color', this.value); this.previousElementSibling.value = this.value}" style="flex:1; padding:2px 4px; border-radius:4px; border:none; background:var(--panel-input-bg); color:var(--panel-input-text); outline:none; font-size:10px;">
                     </div>
                     <label>Tamaño Subtítulo</label>
                     <input type="range" min="6" max="80" value="10" oninput="document.documentElement.style.setProperty('--tt-sub-size', this.value + 'px')">
@@ -1212,6 +1274,22 @@ Nal i jidgando jibeosamkin neol</textarea>
                     <input type="file" id="tt-logo-input" accept="image/png" style="display:none;">
                     <label class="mt-2 text-emerald-300">Tamaño Logo</label>
                     <input type="range" min="50" max="800" value="120" oninput="document.documentElement.style.setProperty('--tt-logo-size', this.value + 'px')">
+
+                    <label class="mt-4 border-t border-gray-700 pt-2">✨ Glow del Logo</label>
+                    <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
+                        <input type="checkbox" id="chk-logo-glow" checked onchange="updateLogoGlow()">
+                        <span style="font-size:11px; color:var(--panel-input-text);">Mostrar/Ocultar Glow del Logo</span>
+                    </div>
+
+                    <label class="mt-2">Color del Glow</label>
+                    <div class="flex gap-2 mb-1">
+                        <input type="color" id="logo-glow-color" value="#ffffff" oninput="this.nextElementSibling.value = this.value; updateLogoGlow()" class="bg-transparent border-0 h-6 w-8 cursor-pointer">
+                        <input type="text" value="#ffffff" oninput="if(/^#[0-9A-Fa-f]{6}$/.test(this.value)){document.getElementById('logo-glow-color').value = this.value; updateLogoGlow()}" style="flex:1; padding:2px 4px; border-radius:4px; border:none; background:var(--panel-input-bg); color:var(--panel-input-text); outline:none; font-size:10px;">
+                    </div>
+
+                    <label>Intensidad / Radio del Glow</label>
+                    <input type="range" id="slider-logo-glow-blur" min="0" max="80" value="12" oninput="this.nextElementSibling.innerText=this.value+'px'; updateLogoGlow()">
+                    <span class="text-xs text-[#FF8EBE] dark:text-purple-400 font-bold block mt-1">12px</span>
                 </div>
             </div>
 
@@ -1229,15 +1307,15 @@ Nal i jidgando jibeosamkin neol</textarea>
                 <h4 style="font-size:11px; margin-top:8px; margin-bottom:4px; color:#aaa;">Colores Botones macOS</h4>
                 <div class="flex gap-2 mb-1">
                     <input type="color" value="#ff5f57" oninput="document.documentElement.style.setProperty('--mac-red', this.value); this.nextElementSibling.value = this.value" class="bg-transparent border-0 h-6 w-8 cursor-pointer">
-                    <input type="text" value="#ff5f57" oninput="if(/^#[0-9A-Fa-f]{6}$/.test(this.value)){document.documentElement.style.setProperty('--mac-red', this.value); this.previousElementSibling.value = this.value}" style="flex:1; padding:2px 4px; border-radius:4px; border:none; background:#222; color:white; outline:none; font-size:10px;">
+                    <input type="text" value="#ff5f57" oninput="if(/^#[0-9A-Fa-f]{6}$/.test(this.value)){document.documentElement.style.setProperty('--mac-red', this.value); this.previousElementSibling.value = this.value}" style="flex:1; padding:2px 4px; border-radius:4px; border:none; background:var(--panel-input-bg); color:var(--panel-input-text); outline:none; font-size:10px;">
                 </div>
                 <div class="flex gap-2 mb-1">
                     <input type="color" value="#febc2e" oninput="document.documentElement.style.setProperty('--mac-yellow', this.value); this.nextElementSibling.value = this.value" class="bg-transparent border-0 h-6 w-8 cursor-pointer">
-                    <input type="text" value="#febc2e" oninput="if(/^#[0-9A-Fa-f]{6}$/.test(this.value)){document.documentElement.style.setProperty('--mac-yellow', this.value); this.previousElementSibling.value = this.value}" style="flex:1; padding:2px 4px; border-radius:4px; border:none; background:#222; color:white; outline:none; font-size:10px;">
+                    <input type="text" value="#febc2e" oninput="if(/^#[0-9A-Fa-f]{6}$/.test(this.value)){document.documentElement.style.setProperty('--mac-yellow', this.value); this.previousElementSibling.value = this.value}" style="flex:1; padding:2px 4px; border-radius:4px; border:none; background:var(--panel-input-bg); color:var(--panel-input-text); outline:none; font-size:10px;">
                 </div>
                 <div class="flex gap-2">
                     <input type="color" value="#28c840" oninput="document.documentElement.style.setProperty('--mac-green', this.value); this.nextElementSibling.value = this.value" class="bg-transparent border-0 h-6 w-8 cursor-pointer">
-                    <input type="text" value="#28c840" oninput="if(/^#[0-9A-Fa-f]{6}$/.test(this.value)){document.documentElement.style.setProperty('--mac-green', this.value); this.previousElementSibling.value = this.value}" style="flex:1; padding:2px 4px; border-radius:4px; border:none; background:#222; color:white; outline:none; font-size:10px;">
+                    <input type="text" value="#28c840" oninput="if(/^#[0-9A-Fa-f]{6}$/.test(this.value)){document.documentElement.style.setProperty('--mac-green', this.value); this.previousElementSibling.value = this.value}" style="flex:1; padding:2px 4px; border-radius:4px; border:none; background:var(--panel-input-bg); color:var(--panel-input-text); outline:none; font-size:10px;">
                 </div>
             </div>
 
@@ -1258,12 +1336,12 @@ Nal i jidgando jibeosamkin neol</textarea>
                 <label>Fondo de Controles (Wrapper)</label>
                 <div class="flex gap-2 mb-1">
                     <input type="color" value="#ffffff" oninput="let c = hexToRgba(this.value, 0.08); document.documentElement.style.setProperty('--player-bg', c); this.nextElementSibling.value = this.value" class="bg-transparent border-0 h-6 w-8 cursor-pointer">
-                    <input type="text" value="#ffffff" oninput="if(/^#[0-9A-Fa-f]{6}$/.test(this.value)){let c = hexToRgba(this.value, 0.08); document.documentElement.style.setProperty('--player-bg', c); this.previousElementSibling.value = this.value}" style="flex:1; padding:2px 4px; border-radius:4px; border:none; background:#222; color:white; outline:none; font-size:10px;">
+                    <input type="text" value="#ffffff" oninput="if(/^#[0-9A-Fa-f]{6}$/.test(this.value)){let c = hexToRgba(this.value, 0.08); document.documentElement.style.setProperty('--player-bg', c); this.previousElementSibling.value = this.value}" style="flex:1; padding:2px 4px; border-radius:4px; border:none; background:var(--panel-input-bg); color:var(--panel-input-text); outline:none; font-size:10px;">
                 </div>
                 <label>Iconos y Texto</label>
                 <div class="flex gap-2">
                     <input type="color" value="#ffffff" oninput="document.documentElement.style.setProperty('--player-controls-color', this.value); this.nextElementSibling.value = this.value" class="bg-transparent border-0 h-6 w-8 cursor-pointer">
-                    <input type="text" value="#ffffff" oninput="if(/^#[0-9A-Fa-f]{6}$/.test(this.value)){document.documentElement.style.setProperty('--player-controls-color', this.value); this.previousElementSibling.value = this.value}" style="flex:1; padding:2px 4px; border-radius:4px; border:none; background:#222; color:white; outline:none; font-size:10px;">
+                    <input type="text" value="#ffffff" oninput="if(/^#[0-9A-Fa-f]{6}$/.test(this.value)){document.documentElement.style.setProperty('--player-controls-color', this.value); this.previousElementSibling.value = this.value}" style="flex:1; padding:2px 4px; border-radius:4px; border:none; background:var(--panel-input-bg); color:var(--panel-input-text); outline:none; font-size:10px;">
                 </div>
                 <label class="mt-2 text-indigo-300">Progress Style</label>
                 <div style="display:flex; gap:6px;">
@@ -1287,13 +1365,13 @@ Nal i jidgando jibeosamkin neol</textarea>
                 <label class="mt-2 text-pink-300">Color Status Bar</label>
                 <div class="flex gap-2 mb-1">
                     <input type="color" id="status-color" value="#ffffff" oninput="document.documentElement.style.setProperty('--status-color', this.value); this.nextElementSibling.value = this.value" class="bg-transparent border-0 h-6 w-8 cursor-pointer">
-                    <input type="text" id="status-color-hex" value="#ffffff" oninput="if(/^#[0-9A-Fa-f]{6}$/.test(this.value)){document.documentElement.style.setProperty('--status-color', this.value); this.previousElementSibling.value = this.value}" style="flex:1; padding:2px 4px; border-radius:4px; border:none; background:#222; color:white; outline:none; font-size:10px;">
+                    <input type="text" id="status-color-hex" value="#ffffff" oninput="if(/^#[0-9A-Fa-f]{6}$/.test(this.value)){document.documentElement.style.setProperty('--status-color', this.value); this.previousElementSibling.value = this.value}" style="flex:1; padding:2px 4px; border-radius:4px; border:none; background:var(--panel-input-bg); color:var(--panel-input-text); outline:none; font-size:10px;">
                 </div>
                 <label>Tamaño Status Bar (Hora)</label>
                 <input type="range" min="10" max="50" value="18" oninput="document.documentElement.style.setProperty('--status-time-size', this.value + 'px')">
 
-                <input id="status-time" type="text" placeholder="11:11" style="width:100%; margin-bottom:8px; margin-top:8px; padding: 8px; border-radius: 8px; background: #222; color: white; border: none; outline: none;">
-                <input id="status-date" type="text" placeholder="Vie, 19 Jun" style="width:100%; padding: 8px; border-radius: 8px; background: #222; color: white; border: none; outline: none;">
+                <input id="status-time" type="text" placeholder="11:11" style="width:100%; margin-bottom:8px; margin-top:8px; padding: 8px; border-radius: 8px; background:var(--panel-input-bg); color:var(--panel-input-text); border: none; outline: none;">
+                <input id="status-date" type="text" placeholder="Vie, 19 Jun" style="width:100%; padding: 8px; border-radius: 8px; background:var(--panel-input-bg); color:var(--panel-input-text); border: none; outline: none;">
                 
                 <label class="mt-2 block">Posición horizontal Fecha/Hora</label>
                 <input type="range" id="status-x-slider" min="-800" max="800" value="0" oninput="document.documentElement.style.setProperty('--status-time-x', this.value + 'px')">
@@ -1337,7 +1415,7 @@ Nal i jidgando jibeosamkin neol</textarea>
                 <label class="mt-2 block text-xs text-pink-400 font-bold">Line Distribution</label>
                 <div class="flex gap-2 mb-1 mt-1">
                     <input type="color" id="window-color-line" value="#000000" class="bg-transparent border-0 h-8 w-10 cursor-pointer">
-                    <input type="text" id="window-hex-line" value="#000000" style="flex:1; padding:4px; border-radius:4px; border:none; background:#222; color:white; outline:none; font-size:11px;">
+                    <input type="text" id="window-hex-line" value="#000000" style="flex:1; padding:4px; border-radius:4px; border:none; background:var(--panel-input-bg); color:var(--panel-input-text); outline:none; font-size:11px;">
                 </div>
                 <div class="flex gap-2 mb-2">
                     <input type="range" id="window-opacity-line" min="0" max="100" value="75" title="Opacidad" class="w-full accent-pink-500">
@@ -1348,7 +1426,7 @@ Nal i jidgando jibeosamkin neol</textarea>
                     <label class="mt-2 block text-xs text-indigo-400 font-bold">Music Player</label>
                     <div class="flex gap-2 mb-1 mt-1">
                         <input type="color" id="window-color-player" value="#000000" class="bg-transparent border-0 h-8 w-10 cursor-pointer">
-                        <input type="text" id="window-hex-player" value="#000000" style="flex:1; padding:4px; border-radius:4px; border:none; background:#222; color:white; outline:none; font-size:11px;">
+                        <input type="text" id="window-hex-player" value="#000000" style="flex:1; padding:4px; border-radius:4px; border:none; background:var(--panel-input-bg); color:var(--panel-input-text); outline:none; font-size:11px;">
                     </div>
                     <div class="flex gap-2 mb-2">
                         <input type="range" id="window-opacity-player" min="0" max="100" value="75" title="Opacidad" class="w-full accent-indigo-500">
@@ -1359,7 +1437,7 @@ Nal i jidgando jibeosamkin neol</textarea>
                 <label class="mt-2 block text-xs text-emerald-400 font-bold">Lyrics Searcher</label>
                 <div class="flex gap-2 mb-1 mt-1">
                     <input type="color" id="window-color-lyrics" value="#000000" class="bg-transparent border-0 h-8 w-10 cursor-pointer">
-                    <input type="text" id="window-hex-lyrics" value="#000000" style="flex:1; padding:4px; border-radius:4px; border:none; background:#222; color:white; outline:none; font-size:11px;">
+                    <input type="text" id="window-hex-lyrics" value="#000000" style="flex:1; padding:4px; border-radius:4px; border:none; background:var(--panel-input-bg); color:var(--panel-input-text); outline:none; font-size:11px;">
                 </div>
                 <div class="flex gap-2 mb-2">
                     <input type="range" id="window-opacity-lyrics" min="0" max="100" value="75" title="Opacidad" class="w-full accent-emerald-500">
@@ -1378,12 +1456,12 @@ Nal i jidgando jibeosamkin neol</textarea>
                 <label class="mt-2 text-pink-300">Color Interior</label>
                 <div class="flex gap-2 mb-1">
                     <input type="color" value="#000000" oninput="document.documentElement.style.setProperty('--cursor-fill', this.value); this.nextElementSibling.value = this.value" class="bg-transparent border-0 h-6 w-8 cursor-pointer">
-                    <input type="text" value="#000000" oninput="if(/^#[0-9A-Fa-f]{6}$/.test(this.value)){document.documentElement.style.setProperty('--cursor-fill', this.value); this.previousElementSibling.value = this.value}" style="flex:1; padding:2px 4px; border-radius:4px; border:none; background:#222; color:white; outline:none; font-size:10px;">
+                    <input type="text" value="#000000" oninput="if(/^#[0-9A-Fa-f]{6}$/.test(this.value)){document.documentElement.style.setProperty('--cursor-fill', this.value); this.previousElementSibling.value = this.value}" style="flex:1; padding:2px 4px; border-radius:4px; border:none; background:var(--panel-input-bg); color:var(--panel-input-text); outline:none; font-size:10px;">
                 </div>
                 <label class="mt-2 text-pink-300">Color Contorno</label>
                 <div class="flex gap-2 mb-1">
                     <input type="color" value="#ffffff" oninput="document.documentElement.style.setProperty('--cursor-stroke', this.value); this.nextElementSibling.value = this.value" class="bg-transparent border-0 h-6 w-8 cursor-pointer">
-                    <input type="text" value="#ffffff" oninput="if(/^#[0-9A-Fa-f]{6}$/.test(this.value)){document.documentElement.style.setProperty('--cursor-stroke', this.value); this.previousElementSibling.value = this.value}" style="flex:1; padding:2px 4px; border-radius:4px; border:none; background:#222; color:white; outline:none; font-size:10px;">
+                    <input type="text" value="#ffffff" oninput="if(/^#[0-9A-Fa-f]{6}$/.test(this.value)){document.documentElement.style.setProperty('--cursor-stroke', this.value); this.previousElementSibling.value = this.value}" style="flex:1; padding:2px 4px; border-radius:4px; border:none; background:var(--panel-input-bg); color:var(--panel-input-text); outline:none; font-size:10px;">
                 </div>
                 <label>Grosor Contorno</label>
                 <input type="range" min="0" max="15" value="1.5" step="0.1" oninput="document.documentElement.style.setProperty('--cursor-stroke-width', this.value + 'px')">
@@ -2182,6 +2260,7 @@ Nal i jidgando jibeosamkin neol</textarea>
             let userAvatarSize = parseInt(document.getElementById('slider-avatar-size').value);
             let userSpacing = parseInt(document.getElementById('slider-spacing').value);
             let avatarGlow = parseInt(document.getElementById('slider-avatar-glow').value);
+            let userFontWeight = document.getElementById('select-font-weight') ? document.getElementById('select-font-weight').value : '700';
             
             let cardSpacing = Math.max(userAvatarSize, userFontSize + userThickness) + userSpacing;
             
@@ -2204,6 +2283,7 @@ Nal i jidgando jibeosamkin neol</textarea>
                 }
                 if (txt) {
                     txt.style.fontSize = userFontSize + "px";
+                    txt.style.fontWeight = userFontWeight;
                     let sub = txt.querySelector('span');
                     if (sub) sub.style.fontSize = Math.max(8, userFontSize - 4) + "px";
                 }
@@ -2252,10 +2332,22 @@ Nal i jidgando jibeosamkin neol</textarea>
             } else if (mode === 'logo') {
                 textMode.style.display = 'none'; logoMode.style.display = 'block';
                 textControls.style.display = 'none'; logoControls.style.display = 'block';
+                updateLogoGlow();
             } else {
                 textMode.style.display = 'none'; logoMode.style.display = 'none';
                 textControls.style.display = 'none'; logoControls.style.display = 'none';
             }
+        }
+
+        // Aplica el glow (brillo) configurable sobre el logo PNG del header, usando
+        // filter: drop-shadow (equivalente CSS de ctx.shadowColor/ctx.shadowBlur para un <img>).
+        function updateLogoGlow() {
+            const img = document.getElementById('header-logo-img');
+            if (!img) return;
+            const enabled = document.getElementById('chk-logo-glow') ? document.getElementById('chk-logo-glow').checked : true;
+            const color = document.getElementById('logo-glow-color') ? document.getElementById('logo-glow-color').value : '#ffffff';
+            const blur = document.getElementById('slider-logo-glow-blur') ? document.getElementById('slider-logo-glow-blur').value : 12;
+            img.style.filter = enabled ? `drop-shadow(0 0 ${blur}px ${color})` : 'none';
         }
 
         document.getElementById('tt-logo-input')?.addEventListener('change', e => {
@@ -2371,6 +2463,7 @@ Nal i jidgando jibeosamkin neol</textarea>
             let userFontSize = parseInt(document.getElementById('slider-font-size').value);
             let userAvatarSize = parseInt(document.getElementById('slider-avatar-size').value);
             let userSpacing = parseInt(document.getElementById('slider-spacing').value);
+            let userFontWeight = document.getElementById('select-font-weight') ? document.getElementById('select-font-weight').value : '700';
             
             let cardSpacing = Math.max(userAvatarSize, userFontSize + userThickness) + userSpacing;
             container.style.height = (membersData.length * cardSpacing) + "px";
@@ -2383,7 +2476,7 @@ Nal i jidgando jibeosamkin neol</textarea>
                         </div>
                         <div class="flex-1 min-w-0 overflow-visible">
                             <div class="flex justify-between items-end text-white font-bold leading-none mb-1.5 overflow-visible">
-                                <span id="tt-name-txt-${i}" class="whitespace-nowrap overflow-visible transition-all duration-200" style="font-size:${userFontSize}px; font-weight:800;">
+                                <span id="tt-name-txt-${i}" class="whitespace-nowrap overflow-visible transition-all duration-200" style="font-size:${userFontSize}px; font-weight:${userFontWeight};">
                                     ${m.name}
                                     <span class="font-normal text-gray-200" style="font-size:${Math.max(8, userFontSize - 4)}px; margin-left:4px; font-weight:400;">
                                         ${m.position}
@@ -2653,7 +2746,7 @@ Nal i jidgando jibeosamkin neol</textarea>
                         video.currentTime = audio.currentTime; 
                         video.play();
                     }
-                    btn.innerText = "⏸ PAUSA";
+                    btn.innerText = "❚❚ PAUSA";
                     fakePlayBtn.innerHTML = '<path d="M8 5v14l11-7z"/>';
                     clearInterval(playbackInterval);
                     playbackInterval = setInterval(updateStudioFrame, 50);
@@ -3250,6 +3343,8 @@ Nal i jidgando jibeosamkin neol</textarea>
             const resultsInner = parseInt(document.getElementById('slider-results-inner').value);
             const donutThickness = parseInt(document.getElementById('slider-donut-thickness').value);
             const donutGlow = document.getElementById('slider-donut-glow').value;
+            const userFontWeight = document.getElementById('select-font-weight') ? document.getElementById('select-font-weight').value : '700';
+            const showPositions = document.getElementById('chk-show-positions') ? document.getElementById('chk-show-positions').checked : true;
             
             const baseCardSpacing = Math.max(userAvatarSize, userFontSize + userThickness) + userSpacing;
 
@@ -3290,13 +3385,13 @@ Nal i jidgando jibeosamkin neol</textarea>
                 }
 
                 listaContainer.innerHTML += `
-                    <div class="flex items-center justify-between font-bold tracking-wide ${listAnimClass} w-full" style="height: ${dynamicCardSpacing}px; color:${m.color}; animation-delay:${isLiveUpdate ? '0' : delay}s; opacity:${listOpac}; margin-bottom:0;">
-                        <span style="display:inline-flex; align-items:center; gap:8px; font-size:${userFontSize}px;">
+                    <div class="flex items-center justify-between tracking-wide ${listAnimClass} w-full" style="height: ${dynamicCardSpacing}px; color:${m.color}; animation-delay:${isLiveUpdate ? '0' : delay}s; opacity:${listOpac}; margin-bottom:0;">
+                        <span style="display:inline-flex; align-items:center; gap:8px; font-size:${userFontSize}px; font-weight:${userFontWeight};">
                             <div class="rounded-full shadow-md" style="width:${Math.max(12, userFontSize*0.9)}px; height:${Math.max(12, userFontSize*0.9)}px; background-color:${m.color}; box-shadow: 0 0 8px ${m.color};"></div>
                             <span style="text-shadow: 0 0 5px ${m.color};">${m.name}</span>
-                            <span class="font-normal text-gray-400" style="font-size:${Math.max(9,userFontSize-4)}px;">· ${m.position}</span>
+                            ${showPositions ? `<span class="font-normal text-gray-400" style="font-size:${Math.max(9,userFontSize-4)}px;">· ${m.position}</span>` : ''}
                         </span>
-                        <span style="font-size:${userFontSize}px; text-shadow: 0 0 5px ${m.color};">${individualPctView}% (${value.toFixed(1)}s)</span>
+                        <span style="font-size:${userFontSize}px; font-weight:${userFontWeight}; text-shadow: 0 0 5px ${m.color};">${individualPctView}% (${value.toFixed(1)}s)</span>
                     </div>`;
             });
 
@@ -3693,7 +3788,10 @@ Nal i jidgando jibeosamkin neol</textarea>
                     titleSize: document.documentElement.style.getPropertyValue('--tt-title-size'),
                     subColor: document.documentElement.style.getPropertyValue('--tt-sub-color'),
                     subSize: document.documentElement.style.getPropertyValue('--tt-sub-size'),
-                    logoSize: document.documentElement.style.getPropertyValue('--tt-logo-size')
+                    logoSize: document.documentElement.style.getPropertyValue('--tt-logo-size'),
+                    logoGlowEnabled: document.getElementById('chk-logo-glow') ? document.getElementById('chk-logo-glow').checked : true,
+                    logoGlowColor: document.getElementById('logo-glow-color') ? document.getElementById('logo-glow-color').value : '#ffffff',
+                    logoGlowBlur: document.getElementById('slider-logo-glow-blur') ? document.getElementById('slider-logo-glow-blur').value : 12
                 },
                 cursor: {
                     size: document.documentElement.style.getPropertyValue('--cursor-size'),
@@ -3722,7 +3820,9 @@ Nal i jidgando jibeosamkin neol</textarea>
                     resultsInnerSpacing: document.getElementById('slider-results-inner').value,
                     recordingDelay: document.getElementById('slider-recording-delay').value,
                     resultadosTitleColor: document.documentElement.style.getPropertyValue('--resultados-title-color'),
-                    titleBottomSpacing: document.documentElement.style.getPropertyValue('--title-bottom-spacing')
+                    titleBottomSpacing: document.documentElement.style.getPropertyValue('--title-bottom-spacing'),
+                    fontWeight: document.getElementById('select-font-weight') ? document.getElementById('select-font-weight').value : '700',
+                    showPositions: document.getElementById('chk-show-positions') ? document.getElementById('chk-show-positions').checked : true
                 },
                 lyricsDynamics: {
                     showAvatar: document.getElementById('cb-lyrics-show-avatar').checked,
@@ -3788,6 +3888,15 @@ Nal i jidgando jibeosamkin neol</textarea>
             }
 
             if(pack.header) {
+                if(pack.header.logoGlowEnabled !== undefined && document.getElementById('chk-logo-glow')) document.getElementById('chk-logo-glow').checked = !!pack.header.logoGlowEnabled;
+                if(pack.header.logoGlowColor && document.getElementById('logo-glow-color')) {
+                    document.getElementById('logo-glow-color').value = pack.header.logoGlowColor;
+                    document.getElementById('logo-glow-color').nextElementSibling.value = pack.header.logoGlowColor;
+                }
+                if(pack.header.logoGlowBlur !== undefined && document.getElementById('slider-logo-glow-blur')) {
+                    document.getElementById('slider-logo-glow-blur').value = pack.header.logoGlowBlur;
+                    document.getElementById('slider-logo-glow-blur').nextElementSibling.innerText = pack.header.logoGlowBlur + 'px';
+                }
                 document.getElementById('header-mode').value = pack.header.mode; updateHeaderMode();
                 if(pack.header.yOffset) { document.getElementById('slider-header-y').value = parseInt(pack.header.yOffset); document.documentElement.style.setProperty('--header-y', pack.header.yOffset); }
                 if(pack.header.titleColor) document.documentElement.style.setProperty('--tt-title-color', pack.header.titleColor);
@@ -3795,6 +3904,7 @@ Nal i jidgando jibeosamkin neol</textarea>
                 if(pack.header.subColor) document.documentElement.style.setProperty('--tt-sub-color', pack.header.subColor);
                 if(pack.header.subSize) document.documentElement.style.setProperty('--tt-sub-size', pack.header.subSize);
                 if(pack.header.logoSize) document.documentElement.style.setProperty('--tt-logo-size', pack.header.logoSize);
+                updateLogoGlow();
             }
 
             if(pack.cursor) {
@@ -3831,6 +3941,10 @@ Nal i jidgando jibeosamkin neol</textarea>
                 
                 if(rv.resultadosTitleColor) { document.getElementById('resultados-title-color').value = rv.resultadosTitleColor; document.documentElement.style.setProperty('--resultados-title-color', rv.resultadosTitleColor); }
                 if(rv.titleBottomSpacing) { document.getElementById('slider-title-bottom-spacing').value = parseInt(rv.titleBottomSpacing); document.documentElement.style.setProperty('--title-bottom-spacing', rv.titleBottomSpacing); }
+                if(rv.fontWeight && document.getElementById('select-font-weight')) { document.getElementById('select-font-weight').value = rv.fontWeight; }
+                if(rv.showPositions !== undefined && document.getElementById('chk-show-positions')) { document.getElementById('chk-show-positions').checked = !!rv.showPositions; }
+                updateRankingVisualsLive();
+                updateResultsVisualsLive();
             }
 
             // Dynamics de Letras
