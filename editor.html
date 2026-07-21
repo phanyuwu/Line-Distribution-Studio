@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Line Distribution Editor</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg?v=2">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
         // Aplica el tema guardado antes del primer paint (misma clave que Line Distribution Studio)
@@ -373,6 +374,7 @@
             overflow: hidden;
             box-shadow: 0 2px 6px rgba(0,0,0,0.25);
             transition: filter 0.1s;
+            touch-action: none;
         }
         .segment:active { cursor: grabbing; }
         .segment.selected {
@@ -392,13 +394,20 @@
             color: white; pointer-events: none; text-shadow: 0 1px 2px black;
         }
         .handle {
-            position: absolute; top: 0; bottom: 0; width: 6px;
+            position: absolute; top: 0; bottom: 0; width: 10px;
             background: rgba(255,255,255,0.5);
             cursor: ew-resize; z-index: 3;
+            touch-action: none;
         }
         .handle:hover { background: white; }
         .handle-left { left: 0; }
         .handle-right { right: 0; }
+
+        .btn-toggle.active {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+        }
 
         .playhead-line {
             position: absolute;
@@ -532,6 +541,7 @@
                     <div class="flex-row">
                         <button class="btn-secondary" style="flex:1;" onclick="addSegmentAtPlayhead()">+ Añadir Clip Aquí</button>
                     </div>
+                    <span style="font-size:10px; color:var(--text-muted); margin-top:4px; display:block;">Tip: Ctrl/Cmd + Click selecciona varios clips (de distintos integrantes). Arrastra el cuerpo de un clip para moverlo; los bordes lo recortan.</span>
                 </div>
 
                 <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 5px 0;">
@@ -541,7 +551,10 @@
                 </div>
 
                 <div id="inspector-content" class="selected-segment-panel" style="display: none;">
-                    <div class="prop-label" style="color: var(--accent);">Clip Seleccionado</div>
+                    <div class="prop-label" style="color: var(--accent); display:flex; align-items:center; justify-content:space-between;">
+                        <span>Clip Seleccionado</span>
+                        <span id="multi-select-badge" style="display:none; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 2px 8px; font-size: 10px; font-weight: 600;"></span>
+                    </div>
                     
                     <div class="prop-group">
                         <label class="prop-label">Integrante</label>
@@ -560,16 +573,17 @@
                     </div>
 
                     <div class="prop-group">
-                        <label class="prop-label">Ajustar a Playhead</label>
+                        <label class="prop-label">Playhead ▸ Clip</label>
                         <div class="flex-row">
-                            <button class="btn-secondary" style="flex:1; font-size:11px;" onclick="setStartToPlayhead()">[ Inicio</button>
-                            <button class="btn-secondary" style="flex:1; font-size:11px;" onclick="setEndToPlayhead()">Fin ]</button>
+                            <button class="btn-secondary" style="flex:1; font-size:11px; padding: 9px 6px;" onclick="setStartToPlayhead()" title="Fija el inicio del clip en el playhead">⏱ Inicio</button>
+                            <button class="btn-secondary" style="flex:1; font-size:11px; padding: 9px 6px;" onclick="setEndToPlayhead()" title="Fija el fin del clip en el playhead">⏱ Fin</button>
+                            <button class="btn-secondary" style="flex:1; font-size:11px; padding: 9px 6px;" onclick="splitSelectedSegment()" title="Divide el clip en dos, en el playhead">✂️ Dividir</button>
                         </div>
                     </div>
 
-                    <div class="flex-row" style="margin-top: 5px;">
-                        <button class="btn-secondary" style="flex: 1;" onclick="duplicateSelectedSegment()">Copiar</button>
-                        <button class="btn-secondary" style="flex: 1; color: var(--danger); border-color: rgba(239, 68, 68, 0.3);" onclick="deleteSelectedSegment()">Eliminar</button>
+                    <div class="flex-row" style="margin-top: 2px;">
+                        <button class="btn-secondary" id="btn-duplicate-segment" style="flex: 1; padding: 10px 8px;" onclick="duplicateSelectedSegment()">⧉ Copiar</button>
+                        <button class="btn-secondary" id="btn-delete-segment" style="flex: 1; padding: 10px 8px; color: var(--danger); border-color: rgba(239, 68, 68, 0.3);" onclick="deleteSelectedSegment()">🗑 Eliminar</button>
                     </div>
                 </div>
             </div>
@@ -578,6 +592,7 @@
         <div class="timeline-section">
             <div class="timeline-toolbar">
                 <span style="font-size: 12px; color: var(--text-muted); font-weight: 500;">TIMELINE</span>
+                <button type="button" class="btn-secondary btn-toggle" id="btn-multiselect-toggle" onclick="toggleMultiSelectMode()" title="Actívalo para tocar varios clips y sumarlos a la selección (útil en tablet, sin teclado)" style="font-size: 11px; padding: 6px 12px;">🔗 Selección múltiple</button>
                 <div style="margin-left: auto; display: flex; align-items: center; gap: 10px;">
                     <span style="font-size: 11px; color: var(--text-muted);">Zoom</span>
                     <input type="range" id="zoom-slider" min="10" max="400" value="50" oninput="changeZoom(this.value)" style="width: 120px;">
@@ -706,6 +721,7 @@ let hasBeenEdited = false;
 let zoomLevel = 50; 
 let maxTimeDuration = 180;
 let selectedSegmentId = null;
+let selectedSegmentIds = new Set(); // Selección múltiple (puede incluir clips de distintos integrantes)
 
 // Elementos del DOM
 const screenLib = document.getElementById('screen-library');
@@ -986,7 +1002,7 @@ function drawSegment(seg) {
     if(!member) return;
 
     const el = document.createElement('div');
-    el.className = `segment ${selectedSegmentId === seg.id ? 'selected' : ''}`;
+    el.className = `segment ${selectedSegmentIds.has(seg.id) ? 'selected' : ''}`;
     el.id = seg.id;
     
     const leftPx = seg.start * zoomLevel;
@@ -1055,29 +1071,61 @@ let dragState = {
     originalSegmentsState: null
 };
 
-tracksContainer.addEventListener('mousedown', function(e) {
+// Activa/desactiva un "modo selección múltiple" persistente (para tablets sin teclado físico,
+// donde no existe Ctrl/Cmd/Shift + Click). Con el modo activo, cada toque alterna la selección
+// del clip igual que si se mantuviera presionado Ctrl.
+let multiSelectModeActive = false;
+function toggleMultiSelectMode() {
+    multiSelectModeActive = !multiSelectModeActive;
+    const btn = document.getElementById('btn-multiselect-toggle');
+    if (btn) btn.classList.toggle('active', multiSelectModeActive);
+}
+
+// Se usan Pointer Events (en vez de Mouse Events) para que arrastrar el cuerpo o los bordes
+// de un clip funcione igual con mouse, trackpad, lápiz o dedo (tablets/touch).
+tracksContainer.addEventListener('pointerdown', function(e) {
+    if (e.button !== undefined && e.button > 0) return; // ignora click derecho / botones secundarios
     const segEl = e.target.closest('.segment');
     if (segEl) {
-        selectSegment(segEl.id);
-        const action = e.target.getAttribute('data-action');
-        if (action) {
-            e.preventDefault();
-            const segData = segments.find(s => s.id === segEl.id);
-            
-            dragState.originalSegmentsState = JSON.parse(JSON.stringify(segments));
-            
-            dragState.active = true; 
-            dragState.action = action; 
-            dragState.segId = segEl.id;
-            dragState.startX = parseFloat(segEl.style.left); 
-            dragState.startWidth = parseFloat(segEl.style.width);
-            dragState.startMouseX = e.clientX;
-            dragState.initialStart = segData.start; 
-            dragState.initialEnd = segData.end;
-            
-            document.addEventListener('mousemove', handleDrag);
-            document.addEventListener('mouseup', endDrag);
+        const additive = e.ctrlKey || e.metaKey || e.shiftKey || multiSelectModeActive;
+        selectSegment(segEl.id, additive);
+
+        // Modo aditivo (Ctrl/Shift o el toggle de selección múltiple) solo alterna la selección, no arrastra
+        if (additive) return;
+
+        // Cualquier punto del cuerpo del clip (no solo el texto) mueve el clip completo;
+        // solo los tiradores de los bordes (data-action="resize-l/r") lo redimensionan.
+        const action = e.target.getAttribute('data-action') || 'move';
+        e.preventDefault();
+        const segData = segments.find(s => s.id === segEl.id);
+        
+        dragState.originalSegmentsState = JSON.parse(JSON.stringify(segments));
+        
+        dragState.active = true; 
+        dragState.action = action; 
+        dragState.segId = segEl.id;
+        dragState.startX = parseFloat(segEl.style.left); 
+        dragState.startWidth = parseFloat(segEl.style.width);
+        dragState.startMouseX = e.clientX;
+        dragState.initialStart = segData.start; 
+        dragState.initialEnd = segData.end;
+
+        // Si la acción es "mover" y hay varios clips seleccionados (posiblemente de distintos
+        // integrantes), todo el grupo se traslada junto conservando la posición relativa de cada uno.
+        if (action === 'move' && selectedSegmentIds.size > 1 && selectedSegmentIds.has(segEl.id)) {
+            dragState.groupIds = [...selectedSegmentIds];
+        } else {
+            dragState.groupIds = [segEl.id];
         }
+        dragState.groupInitial = {};
+        dragState.groupIds.forEach(gid => {
+            const s = segments.find(x => x.id === gid);
+            if (s) dragState.groupInitial[gid] = { start: s.start, end: s.end };
+        });
+        
+        document.addEventListener('pointermove', handleDrag);
+        document.addEventListener('pointerup', endDrag);
+        document.addEventListener('pointercancel', endDrag);
     } else {
         if(e.target.id === 'tracks-container' || e.target.classList.contains('track-lane')) selectSegment(null);
     }
@@ -1087,21 +1135,44 @@ function handleDrag(e) {
     if (!dragState.active) return;
     
     const deltaX = e.clientX - dragState.startMouseX;
-    const deltaTime = deltaX / zoomLevel;
+    let deltaTime = deltaX / zoomLevel;
+
+    if (dragState.action === 'move') {
+        // Mueve el clip (o el grupo completo de clips seleccionados) sin alterar su duración
+        let minStart = Math.min(...dragState.groupIds.map(gid => dragState.groupInitial[gid].start));
+        if (minStart + deltaTime < 0) deltaTime = -minStart;
+
+        dragState.groupIds.forEach(gid => {
+            const s = segments.find(x => x.id === gid);
+            const init = dragState.groupInitial[gid];
+            if (!s || !init) return;
+            s.start = init.start + deltaTime;
+            s.end = init.end + deltaTime;
+            const el = document.getElementById(gid);
+            if (el) {
+                el.style.left = (s.start * zoomLevel) + 'px';
+                el.style.width = ((s.end - s.start) * zoomLevel) + 'px';
+            }
+        });
+
+        if (selectedSegmentId && dragState.groupIds.includes(selectedSegmentId)) {
+            const primary = segments.find(x => x.id === selectedSegmentId);
+            if (primary) {
+                document.getElementById('prop-start').value = primary.start.toFixed(3);
+                document.getElementById('prop-end').value = primary.end.toFixed(3);
+            }
+        }
+        return;
+    }
+
+    // resize-l / resize-r: siempre afecta solo al clip agarrado directamente
     const seg = segments.find(s => s.id === dragState.segId);
     if (!seg) return;
 
     let newStart = dragState.initialStart;
     let newEnd = dragState.initialEnd;
 
-    if (dragState.action === 'move') {
-        newStart += deltaTime;
-        newEnd += deltaTime;
-        if (newStart < 0) {
-            newEnd -= newStart;
-            newStart = 0;
-        }
-    } else if (dragState.action === 'resize-l') {
+    if (dragState.action === 'resize-l') {
         newStart += deltaTime;
         if (newStart >= newEnd - 0.001) newStart = newEnd - 0.001;
         if (newStart < 0) newStart = 0;
@@ -1124,8 +1195,15 @@ function handleDrag(e) {
 function endDrag() {
     if(!dragState.active) return;
     
-    const seg = segments.find(s => s.id === dragState.segId);
-    if(seg && (seg.start !== dragState.initialStart || seg.end !== dragState.initialEnd)) {
+    let changed = false;
+    if (dragState.groupIds && dragState.groupInitial) {
+        changed = dragState.groupIds.some(gid => {
+            const s = segments.find(x => x.id === gid);
+            const init = dragState.groupInitial[gid];
+            return s && init && (s.start !== init.start || s.end !== init.end);
+        });
+    }
+    if (changed) {
         undoStack.push(dragState.originalSegmentsState);
         if (undoStack.length > 50) undoStack.shift();
         redoStack = [];
@@ -1134,8 +1212,9 @@ function endDrag() {
     }
     
     dragState.active = false;
-    document.removeEventListener('mousemove', handleDrag);
-    document.removeEventListener('mouseup', endDrag);
+    document.removeEventListener('pointermove', handleDrag);
+    document.removeEventListener('pointerup', endDrag);
+    document.removeEventListener('pointercancel', endDrag);
     calculateMaxDuration();
     drawRuler(maxTimeDuration * zoomLevel);
 }
@@ -1143,16 +1222,34 @@ function endDrag() {
 /* ==========================================
    PROPIEDADES / INSPECTOR
 ========================================== */
-function selectSegment(id) {
-    if (selectedSegmentId) {
-        let old = document.getElementById(selectedSegmentId);
-        if(old) old.classList.remove('selected');
+function selectSegment(id, additive = false) {
+    if (additive && id) {
+        // Ctrl/Cmd/Shift + Click: alterna la membresía del clip en la selección múltiple
+        if (selectedSegmentIds.has(id)) {
+            selectedSegmentIds.delete(id);
+            const remaining = [...selectedSegmentIds];
+            selectedSegmentId = remaining.length ? remaining[remaining.length - 1] : null;
+        } else {
+            selectedSegmentIds.add(id);
+            selectedSegmentId = id;
+        }
+    } else if (id && selectedSegmentIds.has(id) && selectedSegmentIds.size > 1) {
+        // Click normal sobre un clip que ya forma parte de una selección múltiple:
+        // se conserva el grupo (para poder arrastrarlo completo) y solo cambia el "activo" del inspector
+        selectedSegmentId = id;
+    } else {
+        // Click normal: selección simple (o limpiar si id es null)
+        selectedSegmentIds.clear();
+        selectedSegmentId = id;
+        if (id) selectedSegmentIds.add(id);
     }
-    selectedSegmentId = id;
-    
-    if (id) {
-        let curr = document.getElementById(id);
-        if(curr) curr.classList.add('selected');
+
+    document.querySelectorAll('.segment.selected').forEach(el => el.classList.remove('selected'));
+    selectedSegmentIds.forEach(sid => { const el = document.getElementById(sid); if (el) el.classList.add('selected'); });
+
+    updateMultiSelectUI();
+
+    if (selectedSegmentId) {
         document.getElementById('inspector-empty').style.display = 'none';
         document.getElementById('inspector-content').style.display = 'flex';
         syncInspector();
@@ -1160,6 +1257,23 @@ function selectSegment(id) {
         document.getElementById('inspector-empty').style.display = 'block';
         document.getElementById('inspector-content').style.display = 'none';
     }
+}
+
+function updateMultiSelectUI() {
+    const badge = document.getElementById('multi-select-badge');
+    const n = selectedSegmentIds.size;
+    if (badge) {
+        if (n > 1) {
+            badge.style.display = 'inline-block';
+            badge.innerText = `${n} clips seleccionados`;
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+    const btnDelete = document.getElementById('btn-delete-segment');
+    const btnDup = document.getElementById('btn-duplicate-segment');
+    if (btnDelete) btnDelete.innerText = n > 1 ? `Eliminar (${n})` : 'Eliminar';
+    if (btnDup) btnDup.innerText = n > 1 ? `Copiar (${n})` : 'Copiar';
 }
 
 function populateMemberDropdown() {
@@ -1200,30 +1314,86 @@ function updateSelectedSegment() {
 }
 
 function deleteSelectedSegment() {
-    if(!selectedSegmentId) return;
+    if(!selectedSegmentId && selectedSegmentIds.size === 0) return;
     saveState();
-    segments = segments.filter(s => s.id !== selectedSegmentId);
+    const idsToDelete = selectedSegmentIds.size > 0 ? new Set(selectedSegmentIds) : new Set([selectedSegmentId]);
+    segments = segments.filter(s => !idsToDelete.has(s.id));
     hasBeenEdited = true;
     selectSegment(null);
     updateAllSegmentsVisuals();
 }
 
+// Elige un índice de integrante distinto al actual (si solo hay 1 integrante, no hay a dónde copiarlo)
+function pickRandomDifferentMemberIdx(currentIdx) {
+    if (!membersData || membersData.length <= 1) return currentIdx;
+    let idx;
+    do {
+        idx = Math.floor(Math.random() * membersData.length);
+    } while (idx === currentIdx);
+    return idx;
+}
+
 function duplicateSelectedSegment() {
-    const seg = segments.find(s => s.id === selectedSegmentId);
-    if(!seg) return;
+    const idsToDuplicate = selectedSegmentIds.size > 0 ? [...selectedSegmentIds] : (selectedSegmentId ? [selectedSegmentId] : []);
+    if (!idsToDuplicate.length) return;
     saveState();
-    
-    const dur = seg.end - seg.start;
-    const newSeg = {
-        id: 'seg_' + Date.now(),
-        memberIdx: seg.memberIdx,
-        start: seg.end,
-        end: seg.end + dur
-    };
-    segments.push(newSeg);
+
+    const newIds = [];
+    idsToDuplicate.forEach(id => {
+        const seg = segments.find(s => s.id === id);
+        if (!seg) return;
+        // La copia conserva el mismo inicio/fin, pero se asigna a otra integrante (aleatoria),
+        // pensado para líneas cantadas al mismo tiempo por varias personas (unísono/coro).
+        const newSeg = {
+            id: 'seg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+            memberIdx: pickRandomDifferentMemberIdx(seg.memberIdx),
+            start: seg.start,
+            end: seg.end
+        };
+        segments.push(newSeg);
+        newIds.push(newSeg.id);
+    });
+
     hasBeenEdited = true;
     updateAllSegmentsVisuals();
-    selectSegment(newSeg.id);
+
+    // Selecciona los clips recién duplicados como el nuevo grupo activo
+    selectedSegmentIds.clear();
+    newIds.forEach(id => selectedSegmentIds.add(id));
+    selectedSegmentId = newIds.length ? newIds[newIds.length - 1] : null;
+    document.querySelectorAll('.segment.selected').forEach(el => el.classList.remove('selected'));
+    selectedSegmentIds.forEach(sid => { const el = document.getElementById(sid); if (el) el.classList.add('selected'); });
+    updateMultiSelectUI();
+    if (selectedSegmentId) {
+        document.getElementById('inspector-empty').style.display = 'none';
+        document.getElementById('inspector-content').style.display = 'flex';
+        syncInspector();
+    }
+}
+
+function splitSelectedSegment() {
+    const seg = segments.find(s => s.id === selectedSegmentId);
+    if (!seg) return;
+
+    const t = mediaPlayer.currentTime;
+    if (t <= seg.start + 0.01 || t >= seg.end - 0.01) {
+        alert('Coloca el playhead dentro del clip seleccionado (sin tocar sus bordes) para dividirlo.');
+        return;
+    }
+    saveState();
+
+    const newSeg = {
+        id: 'seg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+        memberIdx: seg.memberIdx,
+        start: t,
+        end: seg.end
+    };
+    seg.end = t;
+    segments.push(newSeg);
+
+    hasBeenEdited = true;
+    updateAllSegmentsVisuals();
+    selectSegment(seg.id);
 }
 
 function setStartToPlayhead() {
