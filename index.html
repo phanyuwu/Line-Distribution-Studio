@@ -3510,7 +3510,7 @@ Nal i jidgando jibeosamkin neol</textarea>
             document.getElementById("wallpaper-input")?.addEventListener("change", e => {
                 const file = e.target.files[0]; if(!file) return;
                 const reader = new FileReader();
-                reader.onload = () => { document.getElementById("os-canvas").style.backgroundImage = `linear-gradient(rgba(0,0,0,0),rgba(0,0,0,.25)), url(${reader.result})`; };
+                reader.onload = () => { document.getElementById("os-canvas").style.backgroundImage = `linear-gradient(rgba(0,0,0,.45),rgba(0,0,0,.65)), url(${reader.result})`; };
                 reader.readAsDataURL(file);
             });
 
@@ -4212,4 +4212,4 @@ Nal i jidgando jibeosamkin neol</textarea>
         }
     </script>
 </body>
-</html>
+    </html>
