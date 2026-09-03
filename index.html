@@ -702,16 +702,37 @@
         #btn-exit-recording {
             display: none; position: fixed; top: 20px; right: 20px;
             width: 50px; height: 50px; border-radius: 50%; font-size: 16px; font-weight: bold;
-            cursor: pointer; z-index: 9999999; transition: 0.3s;
+            cursor: pointer; z-index: 9999999; transition: opacity 0.25s ease, transform 0.2s ease;
             align-items: center; justify-content: center;
             background: rgba(255,255,255,0.85); backdrop-filter: blur(10px);
             color: #262626; border: 1px solid rgba(0,0,0,0.06);
             box-shadow: 0 6px 20px rgba(0,0,0,0.12);
-            opacity: 0.3;
+            opacity: 0;
         }
         .dark #btn-exit-recording { background: rgba(23,23,23,0.85); color: #f5f5f5; border-color: rgba(255,255,255,0.1); }
-        #btn-exit-recording:hover { background: rgba(255,255,255,0.98); transform: scale(1.05); opacity: 1; }
-        .dark #btn-exit-recording:hover { background: rgba(40,40,40,0.98); opacity: 1; }
+        #btn-exit-recording:hover { background: rgba(255,255,255,0.98); transform: scale(1.05); opacity: 0.85; }
+        .dark #btn-exit-recording:hover { background: rgba(40,40,40,0.98); opacity: 0.85; }
+
+        /* Marquee deslizante para cargos/posiciones largas en el ranking de miembros */
+        .member-pos-marquee-wrap {
+            position: relative;
+            overflow: hidden;
+            display: inline-flex;
+            align-items: baseline;
+            min-width: 0;
+            max-width: 100%;
+            flex: 1 1 0%;
+        }
+        .member-pos-marquee-wrap.has-overflow {
+            mask-image: linear-gradient(to right, #000 0%, #000 80%, transparent 100%);
+            -webkit-mask-image: linear-gradient(to right, #000 0%, #000 80%, transparent 100%);
+        }
+        .member-pos-text {
+            display: inline-block;
+            white-space: nowrap;
+            flex-shrink: 0;
+            will-change: transform;
+        }
 
         #status-bar {
             position: absolute;
@@ -756,7 +777,7 @@
         }
         #line-bg-video { 
             width: 100%; height: 100%; 
-            object-fit: cover; opacity: .45; 
+            object-fit: cover; opacity: var(--mv-video-opacity, 1); 
             transition: opacity 0.5s ease;
             transform: scale(var(--mv-zoom));
             transform-origin: center center;
@@ -1741,6 +1762,9 @@ Nal i jidgando jibeosamkin neol</textarea>
                 
                 <label class="mt-2 block">Oscurecer MV</label>
                 <input type="range" id="line-overlay-opacity" min="0" max="100" value="50" oninput="document.getElementById('line-overlay').style.opacity = this.value / 100">
+
+                <label class="mt-2 block">Opacidad MV</label>
+                <input type="range" id="line-video-opacity" min="0" max="100" value="100" oninput="setLineVideoOpacity(this.value)">
             </div>
 
             <button class="btn-layout" onclick="togglePanel('header-tt-panel')">🎙️ Cabecera Line Distribution</button>
@@ -2563,6 +2587,9 @@ Nal i jidgando jibeosamkin neol</textarea>
             canvas.style.transform = `translate(-50%, -50%) scale(${scale})`;
             canvas.setAttribute('data-scale', scale);
 
+            if (typeof checkAndAnimateMemberPositions === 'function') {
+                checkAndAnimateMemberPositions();
+            }
         }
 
         window.addEventListener('resize', () => {
@@ -3121,6 +3148,80 @@ Nal i jidgando jibeosamkin neol</textarea>
            BLOQUE 3: GENERACIÓN Y REPRODUCCIÓN (YOUTUBE / TIKTOK STUDIO)
            ========================================================== */
         
+        // MARQUEE DESLIZANTE PARA POSICIONES LARGAS
+        let posMarqueeResizeObserver = null;
+
+        function checkAndAnimateMemberPositions() {
+            requestAnimationFrame(() => {
+                membersData.forEach((m, i) => {
+                    const wrap = document.querySelector(`#tt-card-${i} .member-pos-marquee-wrap`);
+                    const text = document.getElementById(`tt-pos-txt-${i}`);
+                    if (!wrap || !text) return;
+
+                    if (!wrap._hasPosObserver && window.ResizeObserver) {
+                        wrap._hasPosObserver = true;
+                        if (!posMarqueeResizeObserver) {
+                            posMarqueeResizeObserver = new ResizeObserver((entries) => {
+                                for (const entry of entries) {
+                                    const targetWrap = entry.target;
+                                    const targetText = targetWrap.querySelector('.member-pos-text');
+                                    if (targetWrap && targetText) {
+                                        animateSingleMemberPos(targetWrap, targetText);
+                                    }
+                                }
+                            });
+                        }
+                        posMarqueeResizeObserver.observe(wrap);
+                    }
+
+                    animateSingleMemberPos(wrap, text);
+                });
+            });
+        }
+
+        function animateSingleMemberPos(wrap, text) {
+            const wrapWidth = wrap.clientWidth;
+            const textWidth = Math.max(text.scrollWidth, text.offsetWidth, wrap.scrollWidth);
+            const overflow = textWidth - wrapWidth;
+
+            if (overflow > 2 && wrapWidth > 15) {
+                wrap.classList.add('has-overflow');
+                const dist = -(overflow + 8);
+
+                // Si ya está corriendo suavemente con la misma distancia calculada, no interrumpir
+                if (text._posAnim && text._posAnimDist === dist) {
+                    return;
+                }
+
+                if (text._posAnim) {
+                    text._posAnim.cancel();
+                    text._posAnim = null;
+                }
+
+                const durationMs = Math.round(Math.min(14000, Math.max(3800, (overflow / 22 + 2.8) * 1000)));
+                text._posAnimDist = dist;
+                text._posAnim = text.animate([
+                    { transform: 'translateX(0px)', offset: 0 },
+                    { transform: 'translateX(0px)', offset: 0.18 },
+                    { transform: `translateX(${dist}px)`, offset: 0.72 },
+                    { transform: `translateX(${dist}px)`, offset: 0.88 },
+                    { transform: 'translateX(0px)', offset: 1 }
+                ], {
+                    duration: durationMs,
+                    iterations: Infinity,
+                    easing: 'ease-in-out'
+                });
+            } else {
+                wrap.classList.remove('has-overflow');
+                if (text._posAnim) {
+                    text._posAnim.cancel();
+                    text._posAnim = null;
+                    text._posAnimDist = null;
+                }
+                text.style.transform = 'none';
+            }
+        }
+
         // ACTUALIZACIÓN EN TIEMPO REAL - RANKING VISUALS
         function updateRankingVisualsLive() {
             let userThickness = parseInt(document.getElementById('slider-thickness').value);
@@ -3152,12 +3253,13 @@ Nal i jidgando jibeosamkin neol</textarea>
                 if (txt) {
                     txt.style.fontSize = userFontSize + "px";
                     txt.style.fontWeight = userFontWeight;
-                    let sub = txt.querySelector('span');
+                    let sub = txt.querySelector('.member-pos-text');
                     if (sub) sub.style.fontSize = Math.max(8, userFontSize - 4) + "px";
                 }
                 if (seconds) seconds.style.fontSize = Math.max(8, userFontSize - 4) + "px";
                 if (prgContainer) prgContainer.style.height = userThickness + "px";
             });
+            checkAndAnimateMemberPositions();
 
             const audio = document.getElementById('audio-player');
             if (audio && (audio.paused || audio.currentTime === 0)) {
@@ -3367,6 +3469,21 @@ Nal i jidgando jibeosamkin neol</textarea>
             activeCoros = [];
         }
 
+        // ACTUALIZACIÓN EN TIEMPO REAL - OPACIDAD VIDEO MV
+        function setLineVideoOpacity(val) {
+            const op = Math.min(1, Math.max(0, parseFloat(val) / 100));
+            document.documentElement.style.setProperty('--mv-video-opacity', op);
+            const video = document.getElementById('line-bg-video');
+            if (video && !isPreviewResultsMode && video.style.display !== 'none') {
+                video.style.opacity = String(op);
+            }
+        }
+
+        function getLineVideoOpacity() {
+            const input = document.getElementById('line-video-opacity');
+            return input ? (parseFloat(input.value) / 100) : 1;
+        }
+
         // ACTUALIZACIÓN EN TIEMPO REAL - RESULTADOS DONUT
         function updateResultsVisualsLive() {
             if (document.getElementById('grafico-final-container').style.display !== 'none') {
@@ -3554,15 +3671,19 @@ Nal i jidgando jibeosamkin neol</textarea>
                         <div id="tt-avatar-ring-${i}" class="rounded-full flex-shrink-0 p-0.5 border-4 border-transparent transition-all duration-300" style="width:${userAvatarSize}px;height:${userAvatarSize}px;">
                             <img src="${m.image || 'https://api.dicebear.com/7.x/initials/svg?seed='+i}" class="w-full h-full rounded-full object-cover">
                         </div>
-                        <div class="flex-1 min-w-0 overflow-visible">
-                            <div class="flex justify-between items-end text-white font-bold leading-none mb-1.5 overflow-visible">
-                                <span id="tt-name-txt-${i}" class="whitespace-nowrap overflow-visible transition-all duration-200" style="font-size:${userFontSize}px; font-weight:${userFontWeight};">
-                                    ${m.name}
-                                    <span class="font-normal text-gray-200" style="font-size:${Math.max(8, userFontSize - 4)}px; margin-left:4px; font-weight:400;">
-                                        ${m.position}
-                                    </span>
-                                </span>
-                                <span id="tt-seconds-${i}" class="font-bold text-gray-200" style="font-size: ${Math.max(8, userFontSize-4)}px;">0.00s</span>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-baseline justify-between text-white font-bold leading-none mb-1.5" style="gap: 8px;">
+                                <div id="tt-name-txt-${i}" class="flex items-baseline min-w-0 flex-1 overflow-hidden transition-all duration-200" style="font-size:${userFontSize}px; font-weight:${userFontWeight};">
+                                    <span class="flex-shrink-0 whitespace-nowrap" style="margin-right: 4px;">${m.name}</span>
+                                    ${m.position ? `
+                                        <div class="member-pos-marquee-wrap flex-1 min-w-0 overflow-hidden">
+                                            <span id="tt-pos-txt-${i}" class="member-pos-text inline-block whitespace-nowrap font-normal text-gray-200" style="font-size:${Math.max(8, userFontSize - 4)}px; font-weight:400;">
+                                                ${m.position}
+                                            </span>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                                <span id="tt-seconds-${i}" class="font-bold text-gray-200 flex-shrink-0" style="font-size: ${Math.max(8, userFontSize-4)}px; font-variant-numeric: tabular-nums;">0.00s</span>
                             </div>
                             <div class="w-full bg-neutral-800 rounded-full overflow-hidden" style="height: ${userThickness}px; border: 1px solid rgba(255,255,255,0.1);">
                                 <div id="tt-progress-${i}" class="h-full rounded-full" style="background-color: ${m.color}; width: 0%;"></div>
@@ -3578,6 +3699,11 @@ Nal i jidgando jibeosamkin neol</textarea>
                     if(card) { card.style.opacity = "1"; card.style.transform = `translateY(${i * cardSpacing}px)`; }
                 }, i * 70); 
             });
+            setTimeout(checkAndAnimateMemberPositions, 80);
+            setTimeout(checkAndAnimateMemberPositions, Math.max(350, membersData.length * 75 + 100));
+            if (document.fonts) {
+                document.fonts.ready.then(() => checkAndAnimateMemberPositions());
+            }
             
             lastLyricText = "...";
             
@@ -3765,7 +3891,7 @@ Nal i jidgando jibeosamkin neol</textarea>
                     document.getElementById('grafico-final-container').style.display = 'none';
                     document.getElementById('header-container').style.display = 'block';
                     document.getElementById('tt-bars-area').style.display = 'block';
-                    if (video) { video.style.display = 'block'; video.style.opacity = '0.45'; video.currentTime = 0; }
+                    if (video) { video.style.display = 'block'; video.style.opacity = String(getLineVideoOpacity()); video.currentTime = 0; }
                     audio.currentTime = 0; 
 
                     let numMembers = membersData.length;
@@ -3793,6 +3919,7 @@ Nal i jidgando jibeosamkin neol</textarea>
                         if(prg) prg.style.boxShadow = "none";
                         if(avatarImg) { avatarImg.style.filter = 'none'; avatarImg.style.opacity = '1'; }
                     });
+                    setTimeout(checkAndAnimateMemberPositions, 50);
 
                     const txtLyrics = document.getElementById('tt-lyrics');
                     txtLyrics.innerText = splitLyrics[0] || "..."; txtLyrics.style.opacity = "1";
@@ -3926,7 +4053,7 @@ Nal i jidgando jibeosamkin neol</textarea>
             audio.currentTime = 0;
             
             const video = document.getElementById('line-bg-video');
-            if (video) { video.pause(); video.currentTime = 0; video.style.opacity = '0.45'; }
+            if (video) { video.pause(); video.currentTime = 0; video.style.opacity = String(getLineVideoOpacity()); }
 
             playStudioResult();
         }
@@ -4563,7 +4690,7 @@ Nal i jidgando jibeosamkin neol</textarea>
 
                     // Se queda en el canvas (puro fondo de pantalla) hasta que el usuario decida salir manualmente
                     const exitBtn = document.getElementById('btn-exit-recording');
-                    if (exitBtn) exitBtn.style.opacity = '0.6';
+                    if (exitBtn) exitBtn.style.opacity = '0';
                 }, 4000);
             }, 10000);
         }
@@ -4878,6 +5005,9 @@ Nal i jidgando jibeosamkin neol</textarea>
             win.style.width = (win.offsetWidth + widthChange) + "px";
             win.style.height = (win.offsetHeight + heightChange) + "px";
             saveCurrentWindowGeometry();
+            if (id === 'line-window') {
+                checkAndAnimateMemberPositions();
+            }
         }
 
         function initDraggableWindows() {
@@ -4922,6 +5052,9 @@ Nal i jidgando jibeosamkin neol</textarea>
                     document.removeEventListener("mouseup", stopDrag);
                     document.removeEventListener("touchend", stopDrag);
                     saveCurrentWindowGeometry();
+                    if (id === 'line-window') {
+                        checkAndAnimateMemberPositions();
+                    }
                 };
 
                 if (dragTarget) {
@@ -4957,6 +5090,7 @@ Nal i jidgando jibeosamkin neol</textarea>
 
             document.getElementById('font-selector')?.addEventListener('change', (e) => {
                 document.getElementById('os-canvas').style.fontFamily = e.target.value;
+                setTimeout(checkAndAnimateMemberPositions, 60);
             });
 
             document.getElementById("status-time")?.addEventListener("input", updateStatusBarTime);
@@ -5034,6 +5168,11 @@ Nal i jidgando jibeosamkin neol</textarea>
             document.getElementById("all-avatar-file-setup")?.addEventListener("change", handleAllAvatarFile);
             
             setProgressStyle("bar");
+
+            const initVideoOpInput = document.getElementById('line-video-opacity');
+            if (initVideoOpInput) {
+                setLineVideoOpacity(initVideoOpInput.value);
+            }
 
             const timelineSlider = document.getElementById('preview-timeline-slider');
             if (timelineSlider) {
@@ -5349,7 +5488,8 @@ Nal i jidgando jibeosamkin neol</textarea>
                 },
                 mv: {
                     zoom: document.documentElement.style.getPropertyValue('--mv-zoom'),
-                    opacity: document.getElementById('line-overlay-opacity').value
+                    opacity: document.getElementById('line-overlay-opacity').value,
+                    videoOpacity: document.getElementById('line-video-opacity') ? document.getElementById('line-video-opacity').value : '100'
                 },
                 wallpaper: {
                     url: wallpaperUrl
@@ -5598,7 +5738,17 @@ Nal i jidgando jibeosamkin neol</textarea>
 
             if(pack.mv) {
                 if(pack.mv.zoom) document.documentElement.style.setProperty('--mv-zoom', pack.mv.zoom);
-                if(pack.mv.opacity) { document.getElementById('line-overlay-opacity').value = pack.mv.opacity; document.getElementById('line-overlay').style.opacity = pack.mv.opacity / 100; }
+                if(pack.mv.opacity !== undefined) { 
+                    document.getElementById('line-overlay-opacity').value = pack.mv.opacity; 
+                    document.getElementById('line-overlay').style.opacity = pack.mv.opacity / 100; 
+                }
+                if(pack.mv.videoOpacity !== undefined) {
+                    const vOpInput = document.getElementById('line-video-opacity');
+                    if (vOpInput) {
+                        vOpInput.value = pack.mv.videoOpacity;
+                        setLineVideoOpacity(pack.mv.videoOpacity);
+                    }
+                }
             }
 
             // Forzar actualización de color y blur en ventanas
@@ -5654,6 +5804,7 @@ Nal i jidgando jibeosamkin neol</textarea>
                 }
                 updateStudioFrame();
             }
+            checkAndAnimateMemberPositions();
             saveCurrentWindowGeometry();
         }
 
