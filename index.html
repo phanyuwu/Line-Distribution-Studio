@@ -707,11 +707,11 @@
             background: rgba(255,255,255,0.85); backdrop-filter: blur(10px);
             color: #262626; border: 1px solid rgba(0,0,0,0.06);
             box-shadow: 0 6px 20px rgba(0,0,0,0.12);
-            opacity: 0;
+            opacity: 0.3;
         }
         .dark #btn-exit-recording { background: rgba(23,23,23,0.85); color: #f5f5f5; border-color: rgba(255,255,255,0.1); }
-        #btn-exit-recording:hover { background: rgba(255,255,255,0.98); transform: scale(1.05); }
-        .dark #btn-exit-recording:hover { background: rgba(40,40,40,0.98); }
+        #btn-exit-recording:hover { background: rgba(255,255,255,0.98); transform: scale(1.05); opacity: 1; }
+        .dark #btn-exit-recording:hover { background: rgba(40,40,40,0.98); opacity: 1; }
 
         #status-bar {
             position: absolute;
@@ -756,7 +756,7 @@
         }
         #line-bg-video { 
             width: 100%; height: 100%; 
-            object-fit: cover; opacity: 1; 
+            object-fit: cover; opacity: .45; 
             transition: opacity 0.5s ease;
             transform: scale(var(--mv-zoom));
             transform-origin: center center;
@@ -998,7 +998,7 @@
 
     <!-- Switcher de modo claro/oscuro + acceso al Editor (solo visibles en la interfaz principal) -->
     <div id="top-actions-bar" class="fixed top-4 right-4 z-50 flex items-center gap-2">
-        <a href="/editor" aria-label="Abrir Line Distribution Editor"
+        <a href="https://phanyuwu.github.io/Line-Distribution-Studio/editor" target="_blank" rel="noopener noreferrer" aria-label="Abrir Line Distribution Editor"
             class="flex items-center justify-center bg-white/80 dark:bg-neutral-900/80 backdrop-blur-md border border-neutral-200/50 dark:border-neutral-800 shadow-lg rounded-full p-3 text-neutral-800 dark:text-neutral-200 hover:scale-105 transition">
             <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
         </a>
@@ -1401,6 +1401,13 @@ Nal i jidgando jibeosamkin neol</textarea>
 
         <div id="layout-panel">
             <button class="btn-layout btn-save-layout" onclick="promptSaveLayout()">💾 Guardar Layout Actual</button>
+            <div style="margin-bottom: 12px; background: rgba(255,255,255,0.06); padding: 8px 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+                <label style="font-size: 11px; font-weight: 700; margin-bottom: 6px; display: block; color: var(--panel-input-text, #fff);">📂 Cargar Layout Guardado</label>
+                <div style="display: flex; gap: 6px;">
+                    <select id="studio-layout-selector" style="flex: 1; min-width: 0; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 6px 8px; font-size: 11px; outline: none;"></select>
+                    <button type="button" onclick="loadLayoutInStudio()" class="btn-layout" style="width: auto; padding: 6px 12px; font-size: 11px; margin: 0; white-space: nowrap; background: #FF8EBE; color: #fff; font-weight: 700; border: none; border-radius: 8px; cursor: pointer;">Cargar</button>
+                </div>
+            </div>
             <h3>⚙ Layout Config</h3>
             <hr style="border-color: rgba(255,255,255,0.1); margin: 10px 0;">
 
@@ -2278,6 +2285,67 @@ Nal i jidgando jibeosamkin neol</textarea>
         let progressStyle = "bar";
         
         let pendingLayout = null;
+
+        let configuredWindowGeometries = {
+            youtube: {
+                'line-window': { left: '60px', top: '70px', width: '440px', height: '760px' },
+                'player-window': { left: '540px', top: '70px', width: '800px', height: '360px' },
+                'lyrics-window': { left: '540px', top: '460px', width: '900px', height: '370px' },
+                'coro-window': { left: '', top: '', width: '', height: '' }
+            },
+            tiktok: {
+                'line-window': { left: '50px', top: '100px', width: '800px', height: '1000px' },
+                'lyrics-window': { left: '50px', top: '1150px', width: '800px', height: '350px' },
+                'coro-window': { left: '', top: '', width: '', height: '' }
+            }
+        };
+
+        function saveCurrentWindowGeometry() {
+            const mode = currentStudioMode || 'youtube';
+            if (!configuredWindowGeometries[mode]) {
+                configuredWindowGeometries[mode] = {};
+            }
+            const winIds = ['line-window', 'player-window', 'lyrics-window', 'coro-window'];
+            winIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    if (!configuredWindowGeometries[mode][id]) {
+                        configuredWindowGeometries[mode][id] = {};
+                    }
+                    if (el.style.width) configuredWindowGeometries[mode][id].width = el.style.width;
+                    if (el.style.height) configuredWindowGeometries[mode][id].height = el.style.height;
+                    if (el.style.left) configuredWindowGeometries[mode][id].left = el.style.left;
+                    if (el.style.top) configuredWindowGeometries[mode][id].top = el.style.top;
+                }
+            });
+            try {
+                localStorage.setItem('studio_window_geometries', JSON.stringify(configuredWindowGeometries));
+            } catch (e) {}
+        }
+
+        function loadSavedWindowGeometries() {
+            try {
+                const raw = localStorage.getItem('studio_window_geometries');
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (parsed && typeof parsed === 'object') {
+                        if (parsed.youtube) {
+                            Object.keys(parsed.youtube).forEach(k => {
+                                configuredWindowGeometries.youtube[k] = Object.assign({}, configuredWindowGeometries.youtube[k] || {}, parsed.youtube[k]);
+                            });
+                        }
+                        if (parsed.tiktok) {
+                            Object.keys(parsed.tiktok).forEach(k => {
+                                configuredWindowGeometries.tiktok[k] = Object.assign({}, configuredWindowGeometries.tiktok[k] || {}, parsed.tiktok[k]);
+                            });
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error("Error cargando geometrias guardadas:", e);
+            }
+        }
+        loadSavedWindowGeometries();
 
         // Cursor Tracking Logic
         let cursorTimeline = [];
@@ -3370,7 +3438,7 @@ Nal i jidgando jibeosamkin neol</textarea>
 
             document.getElementById('os-canvas').style.fontFamily = document.getElementById('font-selector').value;
             
-            // Valores por defecto según modo
+            // Valores por defecto o configurados según modo
             const canvas = document.getElementById('os-canvas');
             if (currentStudioMode === 'tiktok') {
                 canvas.style.width = '900px';
@@ -3381,15 +3449,27 @@ Nal i jidgando jibeosamkin neol</textarea>
                 document.getElementById('btn-panel-music').style.display = 'none';
                 document.querySelectorAll('.player-size-controls').forEach(el => el.style.display = 'none');
 
-                document.getElementById('line-window').style.left = '50px';
-                document.getElementById('line-window').style.top = '100px';
-                document.getElementById('line-window').style.width = '800px';
-                document.getElementById('line-window').style.height = '1000px';
+                const geom = (configuredWindowGeometries && configuredWindowGeometries.tiktok) ? configuredWindowGeometries.tiktok : {};
+                const lw = document.getElementById('line-window');
+                const lyw = document.getElementById('lyrics-window');
+                const cw = document.getElementById('coro-window');
 
-                document.getElementById('lyrics-window').style.left = '50px';
-                document.getElementById('lyrics-window').style.top = '1150px';
-                document.getElementById('lyrics-window').style.width = '800px';
-                document.getElementById('lyrics-window').style.height = '350px';
+                lw.style.left = (geom['line-window'] && geom['line-window'].left) || '50px';
+                lw.style.top = (geom['line-window'] && geom['line-window'].top) || '100px';
+                lw.style.width = (geom['line-window'] && geom['line-window'].width) || '800px';
+                lw.style.height = (geom['line-window'] && geom['line-window'].height) || '1000px';
+
+                lyw.style.left = (geom['lyrics-window'] && geom['lyrics-window'].left) || '50px';
+                lyw.style.top = (geom['lyrics-window'] && geom['lyrics-window'].top) || '1150px';
+                lyw.style.width = (geom['lyrics-window'] && geom['lyrics-window'].width) || '800px';
+                lyw.style.height = (geom['lyrics-window'] && geom['lyrics-window'].height) || '350px';
+
+                if (cw && geom['coro-window']) {
+                    if (geom['coro-window'].left) cw.style.left = geom['coro-window'].left;
+                    if (geom['coro-window'].top) cw.style.top = geom['coro-window'].top;
+                    if (geom['coro-window'].width) cw.style.width = geom['coro-window'].width;
+                    if (geom['coro-window'].height) cw.style.height = geom['coro-window'].height;
+                }
             } else {
                 canvas.style.width = '1600px';
                 canvas.style.height = '900px';
@@ -3399,20 +3479,33 @@ Nal i jidgando jibeosamkin neol</textarea>
                 document.getElementById('btn-panel-music').style.display = 'block';
                 document.querySelectorAll('.player-size-controls').forEach(el => el.style.display = 'flex');
 
-                document.getElementById('line-window').style.left = '60px';
-                document.getElementById('line-window').style.top = '70px';
-                document.getElementById('line-window').style.width = '440px';
-                document.getElementById('line-window').style.height = '760px';
+                const geom = (configuredWindowGeometries && configuredWindowGeometries.youtube) ? configuredWindowGeometries.youtube : {};
+                const lw = document.getElementById('line-window');
+                const pw = document.getElementById('player-window');
+                const lyw = document.getElementById('lyrics-window');
+                const cw = document.getElementById('coro-window');
 
-                document.getElementById('player-window').style.left = '540px';
-                document.getElementById('player-window').style.top = '70px';
-                document.getElementById('player-window').style.width = '800px';
-                document.getElementById('player-window').style.height = '360px';
+                lw.style.left = (geom['line-window'] && geom['line-window'].left) || '60px';
+                lw.style.top = (geom['line-window'] && geom['line-window'].top) || '70px';
+                lw.style.width = (geom['line-window'] && geom['line-window'].width) || '440px';
+                lw.style.height = (geom['line-window'] && geom['line-window'].height) || '760px';
 
-                document.getElementById('lyrics-window').style.left = '540px';
-                document.getElementById('lyrics-window').style.top = '460px';
-                document.getElementById('lyrics-window').style.width = '900px';
-                document.getElementById('lyrics-window').style.height = '370px';
+                pw.style.left = (geom['player-window'] && geom['player-window'].left) || '540px';
+                pw.style.top = (geom['player-window'] && geom['player-window'].top) || '70px';
+                pw.style.width = (geom['player-window'] && geom['player-window'].width) || '800px';
+                pw.style.height = (geom['player-window'] && geom['player-window'].height) || '360px';
+
+                lyw.style.left = (geom['lyrics-window'] && geom['lyrics-window'].left) || '540px';
+                lyw.style.top = (geom['lyrics-window'] && geom['lyrics-window'].top) || '460px';
+                lyw.style.width = (geom['lyrics-window'] && geom['lyrics-window'].width) || '900px';
+                lyw.style.height = (geom['lyrics-window'] && geom['lyrics-window'].height) || '370px';
+
+                if (cw && geom['coro-window']) {
+                    if (geom['coro-window'].left) cw.style.left = geom['coro-window'].left;
+                    if (geom['coro-window'].top) cw.style.top = geom['coro-window'].top;
+                    if (geom['coro-window'].width) cw.style.width = geom['coro-window'].width;
+                    if (geom['coro-window'].height) cw.style.height = geom['coro-window'].height;
+                }
             }
 
             // INTENTAR CARGAR LAYOUT DE TRABAJO (Auto-Save state) (ACTIVADO)
@@ -3568,13 +3661,53 @@ Nal i jidgando jibeosamkin neol</textarea>
 
         function exitRecordingMode() {
             isRecordingModeActive = false;
+            clearTimeout(previewCloseTimer);
+            clearTimeout(closingTimer1);
             if (document.fullscreenElement) {
-                document.exitFullscreen();
+                document.exitFullscreen().catch(err => {
+                    console.warn("Error saliendo de fullscreen:", err);
+                });
             }
             document.getElementById('studio-toolbar').style.display = 'flex';
-            document.getElementById('btn-exit-recording').style.display = 'none';
+            const exitBtn = document.getElementById('btn-exit-recording');
+            if (exitBtn) {
+                exitBtn.style.display = 'none';
+                exitBtn.style.opacity = '';
+            }
+            ['line-window', 'player-window', 'lyrics-window'].forEach(id => {
+                const win = document.getElementById(id);
+                if (win) {
+                    win.classList.remove('mac-close-anim');
+                    win.style.animation = 'none';
+                    win.style.opacity = '1';
+                    win.style.transform = 'scale(1)';
+                }
+            });
+            const dockInner = document.getElementById('mac-dock-inner');
+            if (dockInner) {
+                dockInner.classList.remove('dock-slide-down-anim');
+                dockInner.style.animation = 'none';
+                dockInner.style.opacity = '1';
+                dockInner.style.transform = '';
+            }
+            const statusbar = document.getElementById('status-bar');
+            if (statusbar) {
+                statusbar.style.animation = 'none';
+                statusbar.style.opacity = '1';
+            }
             resizeCanvas(); 
         }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && isRecordingModeActive) {
+                exitRecordingMode();
+            }
+        });
+        document.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement && isRecordingModeActive) {
+                exitRecordingMode();
+            }
+        });
         
         // ✨ Atajo táctil: Salir del modo grabación con doble toque (Double Tap)
         let ultimoToque = 0;
@@ -3632,7 +3765,7 @@ Nal i jidgando jibeosamkin neol</textarea>
                     document.getElementById('grafico-final-container').style.display = 'none';
                     document.getElementById('header-container').style.display = 'block';
                     document.getElementById('tt-bars-area').style.display = 'block';
-                    if (video) { video.style.display = 'block'; video.style.opacity = '1'; video.currentTime = 0; }
+                    if (video) { video.style.display = 'block'; video.style.opacity = '0.45'; video.currentTime = 0; }
                     audio.currentTime = 0; 
 
                     let numMembers = membersData.length;
@@ -3793,7 +3926,7 @@ Nal i jidgando jibeosamkin neol</textarea>
             audio.currentTime = 0;
             
             const video = document.getElementById('line-bg-video');
-            if (video) { video.pause(); video.currentTime = 0; video.style.opacity = '1'; }
+            if (video) { video.pause(); video.currentTime = 0; video.style.opacity = '0.45'; }
 
             playStudioResult();
         }
@@ -3916,44 +4049,6 @@ Nal i jidgando jibeosamkin neol</textarea>
                 if (audio.ended && document.getElementById('grafico-final-container').style.display === 'none') {
                     if (video) { video.pause(); video.style.opacity = '0'; }
                     mostrarResultadosGraficoAnillo(false);
-                    
-                    if (!isPreviewResultsMode) {
-                        previewCloseTimer = setTimeout(() => {
-                            ['lyrics-window', 'player-window', 'line-window'].forEach((id, idx) => {
-                                const win = document.getElementById(id);
-                                if(win && win.style.display !== 'none') {
-                                    win.style.animation = 'none';
-                                    win.classList.remove('mac-open-anim');
-                                    void win.offsetWidth;
-                                    win.style.animation = '';
-                                    win.style.animationDelay = `${idx * 0.3}s`;
-                                    win.classList.add('mac-close-anim');
-                                }
-                            });
-                            const dockOuter = document.getElementById('mac-dock');
-                            const dockInner = document.getElementById('mac-dock-inner');
-                            if (dockOuter && dockOuter.style.display !== 'none' && dockInner) {
-                                dockInner.style.animation = 'none';
-                                dockInner.classList.remove('dock-slide-up-anim');
-                                void dockInner.offsetWidth;
-                                dockInner.style.animation = '';
-                                dockInner.style.animationDelay = '0s';
-                                dockInner.classList.add('dock-slide-down-anim');
-                            }
-                            resetDockOpenDots();
-                            const statusbar = document.getElementById('status-bar');
-                            if(statusbar) {
-                                statusbar.style.animation = 'none';
-                                void statusbar.offsetWidth;
-                                statusbar.style.animation = 'statusBarEnter 0.6s ease reverse both';
-                            }
-                            closingTimer1 = setTimeout(() => {
-                                if(!isRecordingModeActive) {
-                                    backToSetup();
-                                }
-                            }, 1500);
-                        }, 10000);
-                    }
                 }
             }
 
@@ -4412,6 +4507,67 @@ Nal i jidgando jibeosamkin neol</textarea>
             donutSpotlightTimers = [];
         }
 
+        // CIERRE AUTOMÁTICO EXCLUSIVO DE RECORDING MODE
+        // En la previsualización normal nunca se quita (permanece indefinidamente).
+        // En Recording Mode: espera 10 segundos con el gráfico y lista de integrantes visibles,
+        // luego cierra todas las ventanas en orden inverso a como se abren, y de último el dock y status bar.
+        function scheduleRecordingModeAutoClose() {
+            if (!isRecordingModeActive) return; // En la previsualización normal nunca se quita
+            if (isPreviewResultsMode) return;
+
+            clearTimeout(previewCloseTimer);
+            clearTimeout(closingTimer1);
+
+            previewCloseTimer = setTimeout(() => {
+                if (!isRecordingModeActive) return;
+
+                // 1) Cerrar ventanas en orden inverso a la apertura:
+                // Se abrieron: line-window (0s), player-window (0.3s), lyrics-window (0.6s)
+                // Se cierran: lyrics-window (0s), player-window (0.3s), line-window (0.6s)
+                const closeWindows = ['lyrics-window', 'player-window', 'line-window'];
+                closeWindows.forEach((id, idx) => {
+                    const win = document.getElementById(id);
+                    if (win && win.style.display !== 'none') {
+                        win.style.animation = 'none';
+                        win.classList.remove('mac-open-anim');
+                        void win.offsetWidth;
+                        win.style.animation = '';
+                        win.style.animationDelay = `${idx * 0.3}s`;
+                        win.classList.add('mac-close-anim');
+                    }
+                });
+
+                // 2) De último el dock y status bar: deben pasar unos 3 segundos después de que cierren todas las ventanas
+                // (la última ventana termina de cerrarse a 0.6s + 0.4s = 1.0s; 1.0s + 3.0s = 4.0s = 4000ms)
+                setTimeout(() => {
+                    if (!isRecordingModeActive) return;
+
+                    const dockOuter = document.getElementById('mac-dock');
+                    const dockInner = document.getElementById('mac-dock-inner');
+                    if (dockOuter && dockOuter.style.display !== 'none' && dockInner) {
+                        dockInner.style.animation = 'none';
+                        dockInner.classList.remove('dock-slide-up-anim');
+                        void dockInner.offsetWidth;
+                        dockInner.style.animation = '';
+                        dockInner.style.animationDelay = '0s';
+                        dockInner.classList.add('dock-slide-down-anim');
+                    }
+                    resetDockOpenDots();
+
+                    const statusbar = document.getElementById('status-bar');
+                    if (statusbar) {
+                        statusbar.style.animation = 'none';
+                        void statusbar.offsetWidth;
+                        statusbar.style.animation = 'statusBarEnter 0.6s ease reverse both';
+                    }
+
+                    // Se queda en el canvas (puro fondo de pantalla) hasta que el usuario decida salir manualmente
+                    const exitBtn = document.getElementById('btn-exit-recording');
+                    if (exitBtn) exitBtn.style.opacity = '0.6';
+                }, 4000);
+            }, 10000);
+        }
+
         // PARAM isLiveUpdate: Evita reiniciar las animaciones si solo estamos moviendo los sliders
         function mostrarResultadosGraficoAnillo(isLiveUpdate = false) {
             if (!recordedTimeline.length) return;
@@ -4584,6 +4740,9 @@ Nal i jidgando jibeosamkin neol</textarea>
                 showAllSegments(false);
                 listaContainer.style.display = 'flex';
                 listaContainer.style.opacity = '1';
+                if (!isLiveUpdate) {
+                    scheduleRecordingModeAutoClose();
+                }
                 return;
             }
 
@@ -4607,6 +4766,16 @@ Nal i jidgando jibeosamkin neol</textarea>
                     listaContainer.style.transition = 'opacity 0.6s ease';
                     void listaContainer.offsetWidth;
                     listaContainer.style.opacity = '1';
+                    Array.from(listaContainer.children).forEach(el => {
+                        el.classList.remove('animate-fade-up-blur');
+                        el.style.animation = 'none';
+                        el.style.opacity = '1';
+                        el.style.transform = 'none';
+                        el.style.filter = 'none';
+                    });
+                    if (!isLiveUpdate) {
+                        scheduleRecordingModeAutoClose();
+                    }
                     return;
                 }
 
@@ -4646,6 +4815,7 @@ Nal i jidgando jibeosamkin neol</textarea>
            ========================================================== */
         
         function backToSetup() {
+            saveCurrentWindowGeometry();
             clearInterval(playbackInterval); 
             clearTimeout(previewStartTimer);
             clearTimeout(previewCloseTimer);
@@ -4693,6 +4863,9 @@ Nal i jidgando jibeosamkin neol</textarea>
         function toggleLayoutPanel() {
             const panel = document.getElementById("layout-panel");
             panel.classList.toggle("open");
+            if (panel.classList.contains("open")) {
+                loadDropdownsMenus();
+            }
         }
 
         function togglePanel(panelId) {
@@ -4704,6 +4877,7 @@ Nal i jidgando jibeosamkin neol</textarea>
             const win = document.getElementById(id);
             win.style.width = (win.offsetWidth + widthChange) + "px";
             win.style.height = (win.offsetHeight + heightChange) + "px";
+            saveCurrentWindowGeometry();
         }
 
         function initDraggableWindows() {
@@ -4747,6 +4921,7 @@ Nal i jidgando jibeosamkin neol</textarea>
                     document.removeEventListener("touchmove", drag);
                     document.removeEventListener("mouseup", stopDrag);
                     document.removeEventListener("touchend", stopDrag);
+                    saveCurrentWindowGeometry();
                 };
 
                 if (dragTarget) {
@@ -5454,24 +5629,60 @@ Nal i jidgando jibeosamkin neol</textarea>
                 }
             });
 
-            // Forzar repintado si el Preview está activo
+            // Forzar repintado y ajuste si el Preview está activo
             if (document.getElementById('os-section').style.display === 'block') {
+                const canvas = document.getElementById('os-canvas');
+                if (canvas) {
+                    if (currentStudioMode === 'tiktok') {
+                        canvas.style.width = '900px';
+                        canvas.style.height = '1600px';
+                        document.getElementById('player-window').style.display = 'none';
+                        document.getElementById('panel-size-player').style.display = 'none';
+                        document.getElementById('panel-app-player').style.display = 'none';
+                        document.getElementById('btn-panel-music').style.display = 'none';
+                        document.querySelectorAll('.player-size-controls').forEach(el => el.style.display = 'none');
+                    } else {
+                        canvas.style.width = '1600px';
+                        canvas.style.height = '900px';
+                        document.getElementById('player-window').style.display = 'flex';
+                        document.getElementById('panel-size-player').style.display = 'block';
+                        document.getElementById('panel-app-player').style.display = 'block';
+                        document.getElementById('btn-panel-music').style.display = 'block';
+                        document.querySelectorAll('.player-size-controls').forEach(el => el.style.display = 'flex');
+                    }
+                    resizeCanvas();
+                }
                 updateStudioFrame();
             }
+            saveCurrentWindowGeometry();
         }
 
         async function promptSaveLayout() {
             let name = prompt("Nombre para este Layout Visual:");
             if(!name || !name.trim()) return;
+            saveCurrentWindowGeometry();
             const layoutData = getCurrentLayoutState();
             await idbSet("layouts", name.trim(), layoutData);
             alert(`Layout "${name}" guardado.`);
             await loadDropdownsMenus();
         }
 
+        async function loadLayoutInStudio() {
+            const sel = document.getElementById('studio-layout-selector');
+            if (!sel || !sel.value) return alert("Selecciona un layout guardado para cargar.");
+            const selected = sel.value;
+            const pack = await idbGet("layouts", selected);
+            if (!pack) return alert(`No se pudo encontrar el layout "${selected}".`);
+            applyLayoutState(pack);
+            saveCurrentWindowGeometry();
+            updateStudioFrame();
+            alert(`Layout "${selected}" cargado y aplicado.`);
+        }
+
         async function saveLayoutToMemory() {
             let name = document.getElementById('save-layout-name').value.trim();
             if(!name) return alert("Escribe un nombre de layout para guardar.");
+            saveCurrentWindowGeometry();
             const layoutData = getCurrentLayoutState();
             await idbSet("layouts", name, layoutData);
             alert(`Layout "${name}" guardado.`);
@@ -5480,8 +5691,14 @@ Nal i jidgando jibeosamkin neol</textarea>
 
         async function loadLayoutFromMemory() {
             let selected = document.getElementById('memory-layout-selector').value;
+            if(!selected) return;
             let pack = await idbGet("layouts", selected); if(!pack) return;
             pendingLayout = pack;
+            if (document.getElementById('os-section').style.display === 'block') {
+                applyLayoutState(pack);
+                saveCurrentWindowGeometry();
+                updateStudioFrame();
+            }
             alert(`Layout "${selected}" cargado y aplicado.`);
         }
 
@@ -5500,8 +5717,11 @@ Nal i jidgando jibeosamkin neol</textarea>
             const projects = await idbGetAll("projects");
             document.getElementById('memory-project-selector').innerHTML = Object.keys(projects).map(k => `<option value="${k}">${k}</option>`).join('') || '<option>No hay canciones guardadas</option>';
             const layouts = await idbGetAll("layouts");
+            const lKeys = Object.keys(layouts);
             const lSel = document.getElementById('memory-layout-selector');
-            if(lSel) lSel.innerHTML = Object.keys(layouts).map(k => `<option value="${k}">${k}</option>`).join('') || '<option>No hay layouts guardados</option>';
+            if(lSel) lSel.innerHTML = lKeys.map(k => `<option value="${k}">${k}</option>`).join('') || '<option>No hay layouts guardados</option>';
+            const sSel = document.getElementById('studio-layout-selector');
+            if(sSel) sSel.innerHTML = lKeys.map(k => `<option value="${k}">${k}</option>`).join('') || '<option value="">No hay layouts guardados</option>';
         }
 
         async function saveGroupToMemory() {
