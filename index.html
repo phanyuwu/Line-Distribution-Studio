@@ -6072,6 +6072,64 @@ Nal i jidgando jibeosamkin neol</textarea>
             try { await clearEntireDatabase(); alert("🗑️ Base de datos eliminada."); location.reload(); }
             catch(error) { console.error(error); alert("No se pudo borrar la base."); }
         }
+
+        /* ==========================================================
+           PUERTA TRASERA PARA RENDERIZADO EN TERMUX (FRAME BY FRAME)
+           ========================================================== */
+        window.prepareForRender = async function(projectData) {
+            // 1. Ocultar toda la interfaz de usuario
+            document.getElementById('setup-wrapper').style.display = 'none';
+            document.getElementById('top-actions-bar').style.display = 'none';
+            document.getElementById('studio-toolbar').style.display = 'none';
+            document.getElementById('layout-panel').classList.remove('open');
+            document.getElementById('fake-cursor').style.display = 'none';
+
+            // 2. Cargar los datos del proyecto directamente
+            document.getElementById('song-title').value = projectData.title || "";
+            document.getElementById('font-selector').value = projectData.font || "'Poppins', sans-serif";
+            document.getElementById('lyrics-input').value = projectData.lyricsText || "";
+            
+            let rawLines = (projectData.lyricsText || "").split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            splitLyrics = []; lyricTags = []; let currentTag = null;
+            for (let line of rawLines) {
+                if (line.startsWith('[') && line.endsWith(']')) currentTag = line.substring(1, line.length - 1).trim();
+                else { splitLyrics.push(line); lyricTags.push(currentTag); }
+            }
+            
+            recordedTimeline = projectData.recordedTimeline || []; 
+            lyricTimeline = projectData.lyricTimeline || [];
+            membersData = projectData.membersLayout || []; 
+            subUnitsData = projectData.subUnitsLayout || []; 
+            allAvatarImage = projectData.allAvatarImage || "";
+            coroEntries = projectData.coroEntries || [];
+            
+            // 3. Cargar los archivos genéricos (El script de Termux creará un servidor local en el puerto 3000)
+            document.getElementById("line-bg-video").src = "http://localhost:3000/mv.mp4";
+            document.getElementById("os-wallpaper").style.backgroundImage = `linear-gradient(rgba(0,0,0,0),rgba(0,0,0,.25)), url(http://localhost:3000/fondo.jpg)`;
+            document.getElementById("header-logo-img").src = "http://localhost:3000/logo.png";
+            
+            // 4. Generar la vista (YouTube o TikTok)
+            currentStudioMode = projectData.mode || 'youtube';
+            await generateStudioViewCore();
+            
+            // 5. Pausar todo para que Termux tome el control manual
+            clearInterval(playbackInterval);
+            const audio = document.getElementById('audio-player');
+            const video = document.getElementById('line-bg-video');
+            if(audio) audio.pause();
+            if(video) video.pause();
+            
+            return "READY";
+        };
+
+        window.goToFrame = function(timeInSeconds) {
+            const audio = document.getElementById('audio-player');
+            const video = document.getElementById('line-bg-video');
+            if(audio) audio.currentTime = timeInSeconds;
+            if(video) video.currentTime = timeInSeconds;
+            updateStudioFrame(); // Forzamos a que se actualicen las barras, letras y brillos
+            return "FRAME_DONE";
+        };
     </script>
 </body>
 </html>
