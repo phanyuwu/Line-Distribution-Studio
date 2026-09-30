@@ -4713,6 +4713,9 @@ Nal i jidgando jibeosamkin neol</textarea>
                     // Se queda en el canvas (puro fondo de pantalla) hasta que el usuario decida salir manualmente
                     const exitBtn = document.getElementById('btn-exit-recording');
                     if (exitBtn) exitBtn.style.opacity = '0';
+
+                    // Marca para render.js: la última animación (status bar, 0.6s) ya terminó
+                    setTimeout(() => { window.__lastAnimDone = true; }, 650);
                 }, 4000);
             }, 10000);
         }
@@ -5940,7 +5943,8 @@ Nal i jidgando jibeosamkin neol</textarea>
                 lyricsText: document.getElementById('lyrics-input').value,
                 membersLayout: membersData, subUnitsLayout: subUnitsData,
                 recordedTimeline: recordedTimeline, lyricTimeline: lyricTimeline, allAvatarImage: allAvatarImage,
-                coroEntries: coroEntries // Guardar coros en el proyecto
+                coroEntries: coroEntries, // Guardar coros en el proyecto
+                cursorTimeline: cursorTimeline // Recorrido del mouse (cursor falso)
             });
             await loadDropdownsMenus();
             alert(`¡Proyecto "${name}" guardado!`);
@@ -5981,6 +5985,7 @@ Nal i jidgando jibeosamkin neol</textarea>
 
             coroEntries = p.coroEntries || []; 
             coroEntries.forEach(e => { if(!e.id) e.id = Date.now() + Math.random(); }); // Cargar coros del proyecto
+            cursorTimeline = p.cursorTimeline || []; // Cargar recorrido del mouse
             
             const container = document.getElementById('members-setup-container'); container.innerHTML = '';
             membersData.forEach((m, i) => container.insertAdjacentHTML('beforeend', createMemberFormHTML("m_" + i, m.name, m.position, m.color, m.image)));
@@ -6074,63 +6079,89 @@ Nal i jidgando jibeosamkin neol</textarea>
         }
 
         /* ==========================================================
-           PUERTA TRASERA PARA RENDERIZADO EN TERMUX (FRAME BY FRAME)
+           MODO RENDER (lo usa render.js desde Termux; no afecta el uso normal)
+           cfg = { project, layout, urls: { audio, mv, wallpaper, logo, cover } }
            ========================================================== */
-        window.prepareForRender = async function(projectData) {
-            // 1. Ocultar toda la interfaz de usuario
-            document.getElementById('setup-wrapper').style.display = 'none';
-            document.getElementById('top-actions-bar').style.display = 'none';
-            document.getElementById('studio-toolbar').style.display = 'none';
-            document.getElementById('layout-panel').classList.remove('open');
-            document.getElementById('fake-cursor').style.display = 'none';
+        window.prepareForRender = async function (cfg) {
+            const p = cfg.project || {};
+            const lay = cfg.layout || {};
+            const u = cfg.urls || {};
 
-            // 2. Cargar los datos del proyecto directamente
-            document.getElementById('song-title').value = projectData.title || "";
-            document.getElementById('font-selector').value = projectData.font || "'Poppins', sans-serif";
-            document.getElementById('lyrics-input').value = projectData.lyricsText || "";
-            
-            let rawLines = (projectData.lyricsText || "").split('\n').map(l => l.trim()).filter(l => l.length > 0);
+            // 0. Sin botón de salir ni barras de scroll
+            const st = document.createElement('style');
+            st.textContent = '#btn-exit-recording{display:none!important} html,body{overflow:hidden!important}';
+            document.head.appendChild(st);
+
+            // 1. Ocultar interfaz de edición
+            ['setup-wrapper', 'top-actions-bar', 'studio-toolbar'].forEach(id => {
+                const el = document.getElementById(id); if (el) el.style.display = 'none';
+            });
+            document.getElementById('layout-panel')?.classList.remove('open');
+
+            // 2. Datos del proyecto
+            document.getElementById('song-title').value = p.title || "";
+            document.getElementById('font-selector').value = p.font || "'Poppins', sans-serif";
+            document.getElementById('lyrics-input').value = p.lyricsText || "";
+            let rawLines = (p.lyricsText || "").split('\n').map(l => l.trim()).filter(l => l.length > 0);
             splitLyrics = []; lyricTags = []; let currentTag = null;
             for (let line of rawLines) {
                 if (line.startsWith('[') && line.endsWith(']')) currentTag = line.substring(1, line.length - 1).trim();
                 else { splitLyrics.push(line); lyricTags.push(currentTag); }
             }
-            
-            recordedTimeline = projectData.recordedTimeline || []; 
-            lyricTimeline = projectData.lyricTimeline || [];
-            membersData = projectData.membersLayout || []; 
-            subUnitsData = projectData.subUnitsLayout || []; 
-            allAvatarImage = projectData.allAvatarImage || "";
-            coroEntries = projectData.coroEntries || [];
-            
-            // 3. Cargar los archivos genéricos (El script de Termux creará un servidor local en el puerto 3000)
-            document.getElementById("line-bg-video").src = "http://localhost:3000/mv.mp4";
-            document.getElementById("os-wallpaper").style.backgroundImage = `linear-gradient(rgba(0,0,0,0),rgba(0,0,0,.25)), url(http://localhost:3000/fondo.jpg)`;
-            document.getElementById("header-logo-img").src = "http://localhost:3000/logo.png";
-            
-            // 4. Generar la vista (YouTube o TikTok)
-            currentStudioMode = projectData.mode || 'youtube';
-            await generateStudioViewCore();
-            
-            // 5. Pausar todo para que Termux tome el control manual
-            clearInterval(playbackInterval);
+            recordedTimeline = p.recordedTimeline || [];
+            lyricTimeline = p.lyricTimeline || [];
+            membersData = p.membersLayout || [];
+            subUnitsData = p.subUnitsLayout || [];
+            allAvatarImage = p.allAvatarImage || "";
+            coroEntries = p.coroEntries || [];
+            cursorTimeline = p.cursorTimeline || [];
+
+            // 3. Modo (YouTube/TikTok) y layout: vienen del LAYOUT elegido, no del proyecto
+            currentStudioMode = lay.mode || 'youtube';
+            pendingLayout = lay; // generateStudioViewCore() lo aplica
+
+            // 4. Audio y MV (pueden ser archivos distintos)
             const audio = document.getElementById('audio-player');
             const video = document.getElementById('line-bg-video');
-            if(audio) audio.pause();
-            if(video) video.pause();
-            
-            return "READY";
+            if (u.audio) audio.src = u.audio;
+            if (u.mv) { video.src = u.mv; video.load(); }
+
+            await generateStudioViewCore();
+            if (document.getElementById('os-section').style.display !== 'block') {
+                throw new Error("No se pudo generar la vista (¿el proyecto no tiene voces guardadas?)");
+            }
+
+            // 5. Archivos locales (pisan lo que traiga el layout)
+            if (u.wallpaper) {
+                const c = document.getElementById('os-canvas');
+                c.style.backgroundImage = `linear-gradient(rgba(0,0,0,0),rgba(0,0,0,.25)), url("${u.wallpaper}")`;
+                c.style.backgroundSize = 'cover'; c.style.backgroundPosition = 'center'; c.style.backgroundRepeat = 'no-repeat';
+            }
+            if (u.logo) document.getElementById('header-logo-img').src = u.logo;
+            if (u.cover) { customCoverUrl = u.cover; document.getElementById('player-cover').src = u.cover; }
+
+            // 6. Esperar fuentes, imágenes y metadata del MV
+            try { await document.fonts.ready; } catch (e) {}
+            const imgs = Array.from(document.images);
+            await Promise.all(imgs.map(im => im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; setTimeout(r, 8000); })));
+            if (u.mv && video.readyState < 1) {
+                await new Promise(r => { video.addEventListener('loadedmetadata', r, { once: true }); video.addEventListener('error', r, { once: true }); setTimeout(r, 15000); });
+            }
+
+            return {
+                mode: currentStudioMode,
+                recordingDelay: parseInt(document.getElementById('slider-recording-delay').value) || 0,
+                mvOk: !!(u.mv && video.videoWidth > 0)
+            };
         };
 
-        window.goToFrame = function(timeInSeconds) {
-            const audio = document.getElementById('audio-player');
-            const video = document.getElementById('line-bg-video');
-            if(audio) audio.currentTime = timeInSeconds;
-            if(video) video.currentTime = timeInSeconds;
-            updateStudioFrame(); // Forzamos a que se actualicen las barras, letras y brillos
-            return "FRAME_DONE";
+        // Arranca lo mismo que el botón "🎥 Recording Mode"
+        window.startRenderSequence = function () {
+            // En headless no hay pantalla completa real; evitamos que su fallo salga del modo grabación
+            try { document.documentElement.requestFullscreen = () => Promise.resolve(); } catch (e) {}
+            window.__lastAnimDone = false;
+            triggerRecordingSequence();
         };
     </script>
 </body>
 </html>
-
