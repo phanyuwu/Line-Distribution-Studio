@@ -2015,7 +2015,7 @@ Nal i jidgando jibeosamkin neol</textarea>
             <button class="btn-layout" onclick="togglePanel('visuals-panel')">🖱️ Mouse y Elementos</button>
             <div id="visuals-panel" style="display:none; margin-top:10px;">
                 <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:8px;">
-                    <input type="checkbox" id="toggle-cursor" class="accent-pink-500" onchange="document.getElementById('fake-cursor').style.display = this.checked ? 'block' : 'none'">
+                    <input type="checkbox" id="toggle-cursor" class="accent-pink-500" checked autocomplete="off" onchange="document.getElementById('fake-cursor').style.display = this.checked ? 'block' : 'none'">
                     Mostrar Cursor Falso Activo
                 </label>
                 <label>Tamaño Cursor</label>
@@ -3568,6 +3568,9 @@ Nal i jidgando jibeosamkin neol</textarea>
 
             document.getElementById('setup-wrapper').style.display = 'none';
             document.getElementById('os-section').style.display = 'block';
+            // El cursor falso debe respetar el checkbox desde el inicio (antes solo reaccionaba al cambiarlo)
+            { const _cb = document.getElementById('toggle-cursor'), _fc = document.getElementById('fake-cursor');
+              if (_cb && _fc) _fc.style.display = _cb.checked ? 'block' : 'none'; }
             document.getElementById('top-actions-bar').style.display = 'none';
             document.body.style.overflow = 'hidden';
             
@@ -3707,7 +3710,7 @@ Nal i jidgando jibeosamkin neol</textarea>
                                 </div>
                                 <span id="tt-seconds-${i}" class="font-bold text-gray-200 flex-shrink-0" style="font-size: ${Math.max(8, userFontSize-4)}px; font-variant-numeric: tabular-nums;">0.00s</span>
                             </div>
-                            <div class="w-full bg-neutral-800 rounded-full overflow-hidden" style="height: ${userThickness}px; border: 1px solid rgba(255,255,255,0.1);">
+                            <div class="w-full bg-neutral-800 rounded-full overflow-hidden" style="height: ${userThickness}px;">
                                 <div id="tt-progress-${i}" class="h-full rounded-full" style="background-color: ${m.color}; width: 0%;"></div>
                             </div>
                         </div>
