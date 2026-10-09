@@ -473,9 +473,10 @@
     <!-- PANTALLA 1: BIBLIOTECA (IndexedDB) -->
     <div id="screen-library">
         <div class="lib-container glass">
-            <div style="text-align: center;">
-                <h1 style="font-size: 24px; font-weight: 700; margin-bottom: 5px;">Line Distribution Editor</h1>
+            <div style="text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                <h1 style="font-size: 24px; font-weight: 700; margin-bottom: 2px;">Line Distribution Editor</h1>
                 <p style="color: var(--text-muted); font-size: 13px;">Conectado a la Biblioteca de Line Distribution Studio Pro</p>
+                <a href="/" class="btn-secondary" style="text-decoration: none; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 6px 14px; margin-top: 4px;">← Ir a Line Distribution Studio</a>
             </div>
             
             <div id="projects-wrapper" style="display: flex; flex-direction: column; gap: 15px;">
@@ -822,8 +823,12 @@ function loadProjectIntoEditor(key, rawProjectData) {
     document.getElementById('header-song-title').innerText = key;
     membersData = originalProjectData.membersLayout || [];
     
-    // Conversión de Precisión (Timestamps -> Segmentos)
-    segments = convertTimelineToSegments(originalProjectData.recordedTimeline, membersData.length);
+    // Si el proyecto ya tiene editorSegments guardados, se cargan con precisión absoluta (sin división ni distorsión)
+    if (originalProjectData.editorSegments && Array.isArray(originalProjectData.editorSegments) && originalProjectData.editorSegments.length > 0) {
+        segments = JSON.parse(JSON.stringify(originalProjectData.editorSegments));
+    } else {
+        segments = convertTimelineToSegments(originalProjectData.recordedTimeline, membersData.length);
+    }
     
     resetHistory();
     mediaPlayer.src = "";
@@ -857,14 +862,20 @@ function convertTimelineToSegments(recordedTimeline, numMembers) {
     if (!recordedTimeline || recordedTimeline.length === 0) return [];
     
     let extractedSegments = [];
-    let activeStarts = new Array(numMembers).fill(null);
     let idCounter = 1;
+
+    let allStart = null;
+    let memberStarts = new Array(numMembers).fill(null);
 
     let firstLog = recordedTimeline[0];
     if (firstLog && firstLog.timestamp >= 0) {
-        for (let m = 0; m < numMembers; m++) {
-            let snap = firstLog.snapshot[m] || 0;
-            if (snap > 0) activeStarts[m] = 0; 
+        if (firstLog.activeIdFlag === 'all') {
+            allStart = 0;
+        } else {
+            for (let m = 0; m < numMembers; m++) {
+                let snap = firstLog.snapshot[m] || 0;
+                if (snap > 0) memberStarts[m] = 0;
+            }
         }
     }
 
@@ -872,33 +883,74 @@ function convertTimelineToSegments(recordedTimeline, numMembers) {
         let prev = recordedTimeline[i-1];
         let curr = recordedTimeline[i];
         let dt = curr.timestamp - prev.timestamp;
+        if (dt <= 0) continue;
 
+        // Comprueba si este frame corresponde al bloque grupal "ALL"
+        let isAllActive = (curr.activeIdFlag === 'all');
+        if (!isAllActive && numMembers > 1) {
+            let allSinging = true;
+            for (let m = 0; m < numMembers; m++) {
+                let dVoice = (curr.snapshot[m] || 0) - (prev.snapshot[m] || 0);
+                if (dVoice <= dt * 0.05) { allSinging = false; break; }
+            }
+            if (allSinging) isAllActive = true;
+        }
+
+        // Transición de ALL
+        if (isAllActive && allStart === null) {
+            allStart = prev.timestamp;
+        } else if (!isAllActive && allStart !== null) {
+            if (prev.timestamp - allStart >= 0.04) {
+                extractedSegments.push({
+                    id: 'seg_' + (idCounter++),
+                    memberIdx: 'all',
+                    start: Math.round(allStart * 1000) / 1000,
+                    end: Math.round(prev.timestamp * 1000) / 1000
+                });
+            }
+            allStart = null;
+        }
+
+        // Transiciones individuales de cada integrante
         for (let m = 0; m < numMembers; m++) {
             let dVoice = (curr.snapshot[m] || 0) - (prev.snapshot[m] || 0);
-            let isSinging = dVoice > (dt * 0.05); 
+            let isDoubleFromLog = curr.doubleActiveMembers && curr.doubleActiveMembers.includes(m);
+            let isSingingIndividually = isAllActive 
+                ? (isDoubleFromLog || dVoice > dt * 1.15) 
+                : (dVoice > dt * 0.05);
 
-            if (isSinging && activeStarts[m] === null) {
-                activeStarts[m] = prev.timestamp; 
-            } else if (!isSinging && activeStarts[m] !== null) {
-                extractedSegments.push({
-                    id: 'seg_' + idCounter++,
-                    memberIdx: m,
-                    start: activeStarts[m],
-                    end: prev.timestamp
-                });
-                activeStarts[m] = null;
+            if (isSingingIndividually && memberStarts[m] === null) {
+                memberStarts[m] = prev.timestamp;
+            } else if (!isSingingIndividually && memberStarts[m] !== null) {
+                if (prev.timestamp - memberStarts[m] >= 0.04) {
+                    extractedSegments.push({
+                        id: 'seg_' + (idCounter++),
+                        memberIdx: m,
+                        start: Math.round(memberStarts[m] * 1000) / 1000,
+                        end: Math.round(prev.timestamp * 1000) / 1000
+                    });
+                }
+                memberStarts[m] = null;
             }
         }
     }
     
     let lastTime = recordedTimeline[recordedTimeline.length-1].timestamp;
+    if (allStart !== null && lastTime - allStart >= 0.04) {
+        extractedSegments.push({
+            id: 'seg_' + (idCounter++),
+            memberIdx: 'all',
+            start: Math.round(allStart * 1000) / 1000,
+            end: Math.round(lastTime * 1000) / 1000
+        });
+    }
     for (let m = 0; m < numMembers; m++) {
-        if (activeStarts[m] !== null) {
+        if (memberStarts[m] !== null && lastTime - memberStarts[m] >= 0.04) {
             extractedSegments.push({
-                id: 'seg_' + idCounter++,
+                id: 'seg_' + (idCounter++),
                 memberIdx: m,
-                start: activeStarts[m],
-                end: lastTime
+                start: Math.round(memberStarts[m] * 1000) / 1000,
+                end: Math.round(lastTime * 1000) / 1000
             });
         }
     }
@@ -910,20 +962,23 @@ function convertSegmentsToTimeline(segments, numMembers, originalTimeline) {
     let newTimeline = [];
     let currentSnapshot = new Array(numMembers).fill(0);
     
-    let baseTimestamps = originalTimeline.map(log => log.timestamp);
+    let baseTimestamps = (originalTimeline && originalTimeline.length > 0)
+        ? originalTimeline.map(log => log.timestamp)
+        : [];
+        
     let maxSegmentTime = segments.reduce((max, seg) => Math.max(max, seg.end), 0);
     let lastOriginalTime = baseTimestamps.length > 0 ? baseTimestamps[baseTimestamps.length - 1] : 0;
     
-    if (maxSegmentTime > lastOriginalTime) {
+    if (baseTimestamps.length === 0 || maxSegmentTime > lastOriginalTime) {
         let t = lastOriginalTime;
-        while (t < maxSegmentTime) {
+        while (t < maxSegmentTime + 0.1) {
             t += 0.030;
-            baseTimestamps.push(t);
+            baseTimestamps.push(Math.round(t * 1000) / 1000);
         }
     }
     
     let lastTime = 0;
-    let subUnitsLayout = originalProjectData.currentSubUnitsLayout || originalProjectData.subUnitsLayout || [];
+    let subUnitsLayout = originalProjectData?.currentSubUnitsLayout || originalProjectData?.subUnitsLayout || [];
 
     for (let i = 0; i < baseTimestamps.length; i++) {
         let currTime = baseTimestamps[i];
@@ -931,27 +986,50 @@ function convertSegmentsToTimeline(segments, numMembers, originalTimeline) {
         if (delta < 0) delta = 0;
 
         let activeMembers = [];
+        let doubleActiveMembers = [];
         let midPoint = lastTime + (delta / 2);
 
+        // ¿Está activo el bloque ALL?
+        let isAllActive = segments.some(seg => seg.memberIdx === 'all' && midPoint >= seg.start && midPoint < seg.end);
+
         for (let m = 0; m < numMembers; m++) {
-            let isSinging = segments.some(seg => seg.memberIdx == m && midPoint >= seg.start && midPoint < seg.end);
-            if (isSinging) {
-                currentSnapshot[m] += delta;
+            // Contar cuántos bloques activos tiene este integrante m:
+            // 1. Clips propios del integrante m
+            let mSpecificCount = segments.filter(seg => seg.memberIdx == m && midPoint >= seg.start && midPoint < seg.end).length;
+            // 2. Si el bloque ALL está activo, suma 1 clip para todos
+            let totalCountForM = mSpecificCount + (isAllActive ? 1 : 0);
+
+            if (totalCountForM > 0) {
+                // Si están interpuestos (totalCountForM >= 2), se cuenta doble (o múltiple)
+                currentSnapshot[m] += delta * totalCountForM;
                 activeMembers.push(m);
+
+                if (totalCountForM >= 2) {
+                    doubleActiveMembers.push(m);
+                }
             }
         }
 
         let flag = null;
         let overlapList = [];
-        if (activeMembers.length === 0) { flag = null; }
-        else if (activeMembers.length === 1) { flag = activeMembers[0]; }
-        else if (activeMembers.length === numMembers && numMembers > 0) { flag = 'all'; }
-        else { flag = 'overlap'; overlapList = activeMembers; }
+        if (isAllActive && doubleActiveMembers.length === 0 && activeMembers.length === numMembers) {
+            flag = 'all';
+        } else if (activeMembers.length === 0) {
+            flag = null;
+        } else if (activeMembers.length === 1 && doubleActiveMembers.length === 0) {
+            flag = activeMembers[0];
+        } else if (activeMembers.length === numMembers && doubleActiveMembers.length === 0) {
+            flag = 'all';
+        } else {
+            flag = 'overlap';
+            overlapList = activeMembers;
+        }
 
         newTimeline.push({
             timestamp: currTime, 
             activeIdFlag: flag,
             overlapSnapshotArray: overlapList,
+            doubleActiveMembers: [...doubleActiveMembers], // Integrantes con líneas interpuestas (segundo anillo en Studio)
             snapshot: [...currentSnapshot],
             currentSubUnitsLayout: subUnitsLayout
         });
@@ -973,8 +1051,24 @@ function calculateMaxDuration() {
 /* ==========================================
    RENDER TIMELINE & RULER
 ========================================== */
+function getTrackRow(memberIdx) {
+    if (memberIdx === 'all') return 0;
+    let n = parseInt(memberIdx);
+    return isNaN(n) ? 0 : n + 1;
+}
+
 function renderTimeline() {
     trackHeaders.innerHTML = `<div style="height: var(--ruler-h); border-bottom: 1px solid var(--border-color);"></div>`;
+    
+    // Header Track 0: ALL
+    trackHeaders.innerHTML += `
+        <div class="track-header" style="background: rgba(255, 142, 190, 0.08); border-left: 3px solid var(--accent, #FF8EBE);">
+            <div class="track-color-dot" style="background: var(--accent, #FF8EBE); box-shadow: 0 0 6px var(--accent, #FF8EBE);"></div>
+            <div style="font-weight: 700; color: var(--accent, #FF8EBE); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">ALL (Todos)</div>
+        </div>
+    `;
+
+    // Headers Tracks 1..N: Integrantes
     membersData.forEach((m, i) => {
         trackHeaders.innerHTML += `
             <div class="track-header">
@@ -988,6 +1082,9 @@ function renderTimeline() {
     tracksContainer.style.width = containerWidth + 'px';
     
     let tracksHtml = '';
+    // Carril 0: ALL
+    tracksHtml += `<div class="track-lane" style="background: rgba(255, 142, 190, 0.03);"></div>`;
+    // Carriles 1..N: Integrantes
     membersData.forEach(() => { tracksHtml += `<div class="track-lane"></div>`; });
     
     tracksHtml += `<div class="playhead-line" id="playhead"><div class="playhead-head"></div></div>`;
@@ -998,8 +1095,10 @@ function renderTimeline() {
 }
 
 function drawSegment(seg) {
-    const member = membersData[seg.memberIdx];
-    if(!member) return;
+    const isAll = seg.memberIdx === 'all';
+    const member = isAll ? null : membersData[seg.memberIdx];
+    const color = isAll ? 'var(--accent, #FF8EBE)' : (member ? member.color : '#FF8EBE');
+    const name = isAll ? 'ALL (Todos)' : (member ? member.name : 'Clip');
 
     const el = document.createElement('div');
     el.className = `segment ${selectedSegmentIds.has(seg.id) ? 'selected' : ''}`;
@@ -1007,17 +1106,18 @@ function drawSegment(seg) {
     
     const leftPx = seg.start * zoomLevel;
     const widthPx = (seg.end - seg.start) * zoomLevel;
-    const topPx = seg.memberIdx * 50 + 4;
+    const trackRow = getTrackRow(seg.memberIdx);
+    const topPx = trackRow * 50 + 4;
 
     el.style.left = leftPx + 'px';
     el.style.width = widthPx + 'px';
     el.style.top = topPx + 'px';
-    el.style.border = `1px solid ${member.color}`;
+    el.style.border = `1px solid ${color}`;
 
     el.innerHTML = `
-        <div class="segment-bg" style="background: ${member.color}"></div>
+        <div class="segment-bg" style="background: ${color}"></div>
         <div class="handle handle-left" data-action="resize-l"></div>
-        <div class="segment-label" data-action="move">${member.name}</div>
+        <div class="segment-label" data-action="move">${name}</div>
         <div class="handle handle-right" data-action="resize-r"></div>
     `;
 
@@ -1278,7 +1378,7 @@ function updateMultiSelectUI() {
 
 function populateMemberDropdown() {
     const sel = document.getElementById('prop-member');
-    sel.innerHTML = '';
+    sel.innerHTML = '<option value="all">👥 ALL (Todos)</option>';
     membersData.forEach((m, i) => {
         sel.innerHTML += `<option value="${i}">${m.name}</option>`;
     });
@@ -1287,7 +1387,7 @@ function populateMemberDropdown() {
 function syncInspector() {
     const seg = segments.find(s => s.id === selectedSegmentId);
     if(!seg) return;
-    document.getElementById('prop-member').value = seg.memberIdx;
+    document.getElementById('prop-member').value = String(seg.memberIdx);
     document.getElementById('prop-start').value = seg.start.toFixed(3);
     document.getElementById('prop-end').value = seg.end.toFixed(3);
 }
@@ -1298,7 +1398,8 @@ function updateSelectedSegment() {
     
     let nStart = parseFloat(document.getElementById('prop-start').value);
     let nEnd = parseFloat(document.getElementById('prop-end').value);
-    let nMember = parseInt(document.getElementById('prop-member').value);
+    let nMemberVal = document.getElementById('prop-member').value;
+    let nMember = nMemberVal === 'all' ? 'all' : parseInt(nMemberVal);
     
     if(nStart < 0) nStart = 0;
     if(nEnd <= nStart) nEnd = nStart + 0.001;
@@ -1327,9 +1428,10 @@ function deleteSelectedSegment() {
 function pickRandomDifferentMemberIdx(currentIdx) {
     if (!membersData || membersData.length <= 1) return currentIdx;
     let idx;
+    let numCurrent = parseInt(currentIdx);
     do {
         idx = Math.floor(Math.random() * membersData.length);
-    } while (idx === currentIdx);
+    } while (idx === numCurrent);
     return idx;
 }
 
@@ -1342,11 +1444,15 @@ function duplicateSelectedSegment() {
     idsToDuplicate.forEach(id => {
         const seg = segments.find(s => s.id === id);
         if (!seg) return;
-        // La copia conserva el mismo inicio/fin, pero se asigna a otra integrante (aleatoria),
-        // pensado para líneas cantadas al mismo tiempo por varias personas (unísono/coro).
+        let targetIdx;
+        if (seg.memberIdx === 'all') {
+            targetIdx = 'all';
+        } else {
+            targetIdx = pickRandomDifferentMemberIdx(seg.memberIdx);
+        }
         const newSeg = {
             id: 'seg_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
-            memberIdx: pickRandomDifferentMemberIdx(seg.memberIdx),
+            memberIdx: targetIdx,
             start: seg.start,
             end: seg.end
         };
@@ -1425,10 +1531,12 @@ function setEndToPlayhead() {
 function addSegmentAtPlayhead() {
     saveState();
     
-    let mIdx = 0;
+    let mIdx = 'all';
     if (selectedSegmentId) {
         const seg = segments.find(s => s.id === selectedSegmentId);
         if (seg) mIdx = seg.memberIdx;
+    } else if (membersData.length > 0) {
+        mIdx = 0;
     }
     let t = mediaPlayer.currentTime;
     const newSeg = {
@@ -1545,16 +1653,12 @@ async function processSaveToDB() {
     let newName = document.getElementById('export-name').value.trim();
     if (!newName) newName = "Proyecto Editado";
     
-    let newTimelineFormat;
-    
-    if (!hasBeenEdited) {
-        newTimelineFormat = JSON.parse(JSON.stringify(originalProjectData.recordedTimeline));
-    } else {
-        newTimelineFormat = convertSegmentsToTimeline(segments, membersData.length, originalProjectData.recordedTimeline);
-    }
+    let newTimelineFormat = convertSegmentsToTimeline(segments, membersData.length, originalProjectData.recordedTimeline);
     
     const modifiedProject = JSON.parse(JSON.stringify(originalProjectData));
     modifiedProject.recordedTimeline = newTimelineFormat;
+    // Guardar los segmentos exactos para que nunca se dividan, muevan ni fragmenten al reabrir
+    modifiedProject.editorSegments = JSON.parse(JSON.stringify(segments));
     
     try {
         await idbSet("projects", newName, modifiedProject);
