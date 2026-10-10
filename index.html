@@ -2301,6 +2301,82 @@ Nal i jidgando jibeosamkin neol</textarea>
         let activeMemberIndex = null; 
         let isOverlapModeActive = false; 
         let overlapActiveList = []; 
+        let currentEditorSegments = null;
+
+        // Genera segmentos limpios y directos para el Editor a partir de la grabación en Studio
+        function generateEditorSegmentsFromRecordedTimeline(timeline, numMembers) {
+            if (!timeline || timeline.length === 0) return [];
+            let segments = [];
+            let idCounter = 1;
+            let activeSpans = {};
+
+            function startSpan(key, t) {
+                if (!activeSpans[key]) {
+                    activeSpans[key] = { start: t, lastActiveTime: t };
+                } else {
+                    activeSpans[key].lastActiveTime = t;
+                }
+            }
+
+            function checkCloseSpans(currentTime, forceAll = false) {
+                Object.keys(activeSpans).forEach(key => {
+                    let span = activeSpans[key];
+                    if (!span) return;
+                    if (forceAll || (currentTime - span.lastActiveTime > 0.15)) {
+                        let dur = span.lastActiveTime - span.start;
+                        if (dur >= 0.08) {
+                            segments.push({
+                                id: 'seg_' + (idCounter++),
+                                memberIdx: key === 'all' ? 'all' : parseInt(key),
+                                start: Math.round(span.start * 1000) / 1000,
+                                end: Math.round(span.lastActiveTime * 1000) / 1000
+                            });
+                        }
+                        delete activeSpans[key];
+                    }
+                });
+            }
+
+            for (let i = 0; i < timeline.length; i++) {
+                let log = timeline[i];
+                let t = log.timestamp;
+                let flag = log.activeIdFlag;
+                let activeKeysThisLog = new Set();
+
+                if (flag === 'all') {
+                    activeKeysThisLog.add('all');
+                } else if (flag === 'overlap' && Array.isArray(log.overlapSnapshotArray)) {
+                    log.overlapSnapshotArray.forEach(m => activeKeysThisLog.add(String(m)));
+                } else if (typeof flag === 'number' && flag >= 0) {
+                    activeKeysThisLog.add(String(flag));
+                } else if (typeof flag === 'string' && flag.startsWith('su_')) {
+                    let subUnits = log.currentSubUnitsLayout || subUnitsData || [];
+                    let targetSu = subUnits.find(s => s.suId === flag);
+                    if (targetSu && membersData) {
+                        membersData.forEach((m, idx) => {
+                            if (targetSu.membersList && targetSu.membersList.includes(m.name)) {
+                                activeKeysThisLog.add(String(idx));
+                            }
+                        });
+                    }
+                }
+
+                if (Array.isArray(log.doubleActiveMembers)) {
+                    log.doubleActiveMembers.forEach(m => activeKeysThisLog.add(String(m)));
+                }
+
+                activeKeysThisLog.forEach(key => startSpan(key, t));
+                checkCloseSpans(t, false);
+            }
+
+            if (timeline.length > 0) {
+                let lastT = timeline[timeline.length - 1].timestamp;
+                checkCloseSpans(lastT, true);
+            }
+
+            segments.sort((a, b) => a.start - b.start);
+            return segments;
+        } 
         
         let playbackInterval = null;
         let recordInterval = null;
@@ -3098,6 +3174,7 @@ Nal i jidgando jibeosamkin neol</textarea>
         function saveFase1Data() {
             if (recordedTimeline.length === 0) return alert("No hay datos grabados.");
             isRecordingMode = 'none'; clearInterval(recordInterval);
+            currentEditorSegments = generateEditorSegmentsFromRecordedTimeline(recordedTimeline, membersData.length);
             document.getElementById('status-fase1').className = "text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-900 px-2 py-0.5 rounded-full font-bold";
             document.getElementById('status-fase1').innerText = "¡Guardado con éxito! ✔";
         }
@@ -3338,6 +3415,96 @@ Nal i jidgando jibeosamkin neol</textarea>
             return opts;
         }
 
+        function formatCoroTime(sec) {
+            if (isNaN(sec) || sec === null || sec === undefined || sec < 0) sec = 0;
+            let m = Math.floor(sec / 60);
+            let s = sec % 60;
+            let sInt = Math.floor(s);
+            let dec = Math.round((s - sInt) * 10);
+            let sStr = String(sInt).padStart(2, '0');
+            if (dec > 0 && dec < 10) return `${m}:${sStr}.${dec}`;
+            return `${m}:${sStr}`;
+        }
+
+        function parseCoroTime(val) {
+            if (typeof val === 'number') return Math.max(0, val);
+            if (!val || typeof val !== 'string') return 0;
+            val = val.trim();
+            if (val.includes(':')) {
+                let parts = val.split(':');
+                let m = parseFloat(parts[0]) || 0;
+                let s = parseFloat(parts[1]) || 0;
+                return Math.max(0, Math.round((m * 60 + s) * 100) / 100);
+            }
+            return Math.max(0, Math.round((parseFloat(val) || 0) * 100) / 100);
+        }
+
+        function updateCoroStartTime(idx, val) {
+            if (!coroEntries[idx]) return;
+            coroEntries[idx].start = parseCoroTime(val);
+            buildCoroEntriesUI();
+        }
+
+        let coroPreviewTimer = null;
+        let activeCoroPreviewIdx = null;
+
+        function previewCoroAudioSnippet(i) {
+            const audio = document.getElementById('audio-player');
+            if (!audio || !audio.src) {
+                return alert("Carga primero un archivo de audio para escuchar el fragmento del coro/adlib.");
+            }
+
+            if (activeCoroPreviewIdx === i) {
+                audio.pause();
+                if (coroPreviewTimer) clearTimeout(coroPreviewTimer);
+                coroPreviewTimer = null;
+                activeCoroPreviewIdx = null;
+                refreshCoroPlayIcons();
+                return;
+            }
+
+            if (coroPreviewTimer) clearTimeout(coroPreviewTimer);
+
+            let entry = coroEntries[i];
+            if (!entry) return;
+
+            let startSec = typeof entry.start === 'number' ? entry.start : parseCoroTime(entry.start);
+            let durationSec = parseFloat(entry.duration) || 2.5;
+
+            audio.currentTime = Math.max(0, startSec);
+            activeCoroPreviewIdx = i;
+            refreshCoroPlayIcons();
+
+            audio.play().then(() => {
+                let rate = audio.playbackRate || 1;
+                let ms = (durationSec / rate) * 1000;
+                coroPreviewTimer = setTimeout(() => {
+                    audio.pause();
+                    activeCoroPreviewIdx = null;
+                    refreshCoroPlayIcons();
+                }, ms);
+            }).catch(err => {
+                console.warn("No se pudo reproducir audio:", err);
+                activeCoroPreviewIdx = null;
+                refreshCoroPlayIcons();
+            });
+        }
+
+        function refreshCoroPlayIcons() {
+            coroEntries.forEach((_, i) => {
+                let btn = document.getElementById(`btn-play-coro-${i}`);
+                if (btn) {
+                    if (activeCoroPreviewIdx === i) {
+                        btn.innerText = "⏹️";
+                        btn.style.background = "rgba(239, 68, 68, 0.25)";
+                    } else {
+                        btn.innerText = "▶️";
+                        btn.style.background = "rgba(255, 142, 190, 0.15)";
+                    }
+                }
+            });
+        }
+
         function buildCoroEntriesUI() {
             const container = document.getElementById('coro-entries-list');
             if (!container) return;
@@ -3357,14 +3524,15 @@ Nal i jidgando jibeosamkin neol</textarea>
                     </select>
                     <div style="display:flex; gap:6px; align-items:flex-end;">
                         <div style="flex:1;">
-                            <label style="margin-top:0; font-size:9px;">Inicio (s)</label>
-                            <input type="number" step="0.1" value="${e.start}" oninput="coroEntries[${i}].start=parseFloat(this.value)||0;" style="width:100%; padding:3px 6px; border-radius:6px; border:none; background:var(--panel-input-bg); color:var(--panel-input-text); outline:none; font-size:11px;">
+                            <label style="margin-top:0; font-size:9px;">Inicio (0:00)</label>
+                            <input type="text" value="${formatCoroTime(e.start)}" onchange="updateCoroStartTime(${i}, this.value)" placeholder="0:00" style="width:100%; padding:3px 6px; border-radius:6px; border:none; background:var(--panel-input-bg); color:var(--panel-input-text); outline:none; font-size:11px; font-variant-numeric: tabular-nums;">
                         </div>
                         <div style="flex:1;">
                             <label style="margin-top:0; font-size:9px;">Duración (s)</label>
                             <input type="number" step="0.1" value="${e.duration}" oninput="coroEntries[${i}].duration=parseFloat(this.value)||1;" style="width:100%; padding:3px 6px; border-radius:6px; border:none; background:var(--panel-input-bg); color:var(--panel-input-text); outline:none; font-size:11px;">
                         </div>
-                        <button type="button" title="Usar el tiempo actual del audio" onclick="setCoroEntryStartFromAudio(${i})" style="font-size:14px; padding:5px 8px; border-radius:6px; border:1px solid rgba(128,128,128,0.4); background:transparent; color:var(--panel-input-text); cursor:pointer;">⏱️</button>
+                        <button type="button" title="Usar el tiempo actual del reproductor" onclick="setCoroEntryStartFromAudio(${i})" style="font-size:14px; padding:5px 8px; border-radius:6px; border:1px solid rgba(128,128,128,0.4); background:transparent; color:var(--panel-input-text); cursor:pointer;">⏱️</button>
+                        <button type="button" id="btn-play-coro-${i}" title="Escuchar fragmento (${e.duration || 2.5}s)" onclick="previewCoroAudioSnippet(${i})" style="font-size:13px; padding:5px 8px; border-radius:6px; border:1px solid rgba(128,128,128,0.4); background:rgba(255,142,190,0.15); color:var(--panel-input-text); cursor:pointer;">${activeCoroPreviewIdx === i ? '⏹️' : '▶️'}</button>
                     </div>
                 </div>
             `).join('');
@@ -3379,6 +3547,13 @@ Nal i jidgando jibeosamkin neol</textarea>
         }
 
         function removeCoroEntry(i) {
+            if (activeCoroPreviewIdx === i) {
+                const audio = document.getElementById('audio-player');
+                if (audio) audio.pause();
+                if (coroPreviewTimer) clearTimeout(coroPreviewTimer);
+                coroPreviewTimer = null;
+                activeCoroPreviewIdx = null;
+            }
             coroEntries.splice(i, 1);
             buildCoroEntriesUI();
         }
@@ -4623,7 +4798,15 @@ Nal i jidgando jibeosamkin neol</textarea>
                             ring.style.boxShadow = `0 0 ${avatarGlow}px ${m.color}`; 
                             ring.style.transform = `scale(${avatarActiveScale})`; 
                             // Segundo anillo exterior fino, del mismo color, sin saturar
-                            ring.style.outlineColor = isDouble ? m.color : 'transparent';
+                            if (isDouble) {
+                                ring.style.outline = `2px solid ${m.color}`;
+                                ring.style.outlineColor = m.color;
+                                ring.style.outlineOffset = '3px';
+                            } else {
+                                ring.style.outline = '2px solid transparent';
+                                ring.style.outlineColor = 'transparent';
+                                ring.style.outlineOffset = '3px';
+                            }
                         }
                         if(txt) { txt.style.textShadow = `0 0 ${Math.max(0, avatarGlow - 5)}px ${m.color}, 0 0 ${Math.max(0, avatarGlow - 10)}px ${m.color}`; }
                         if(prg) { prg.style.boxShadow = `0 0 ${avatarGlow + 1}px ${m.color}, 0 0 ${Math.max(0, avatarGlow - 9)}px ${m.color}`; }
@@ -4632,6 +4815,7 @@ Nal i jidgando jibeosamkin neol</textarea>
                         if(ring) { 
                             ring.style.borderColor = "transparent"; 
                             ring.style.boxShadow = "none"; 
+                            ring.style.outline = "2px solid transparent";
                             ring.style.outlineColor = "transparent";
                             ring.style.transform = 'scale(1)'; 
                         }
@@ -4714,7 +4898,19 @@ Nal i jidgando jibeosamkin neol</textarea>
         // Resuelve qué integrantes cantan de forma doble / interpuesta (para el segundo anillo fino)
         function getDoubleActiveIndicesForLog(log) {
             if (!log) return [];
-            if (Array.isArray(log.doubleActiveMembers)) return log.doubleActiveMembers;
+            if (Array.isArray(log.doubleActiveMembers) && log.doubleActiveMembers.length > 0) return log.doubleActiveMembers;
+            // Fallback dinámico si el proyecto tiene editorSegments y no se guardó doubleActiveMembers en el log
+            let activeSegments = (typeof currentEditorSegments !== 'undefined' && currentEditorSegments) ? currentEditorSegments : ((typeof currentLoadedProjectData !== 'undefined' && currentLoadedProjectData) ? currentLoadedProjectData.editorSegments : null);
+            if (activeSegments && Array.isArray(activeSegments)) {
+                let t = log.timestamp;
+                let isAll = activeSegments.some(s => s.memberIdx === 'all' && t >= s.start && t < s.end);
+                let doubles = [];
+                membersData.forEach((_, m) => {
+                    let mCount = activeSegments.filter(s => (s.memberIdx == m || String(s.memberIdx) === String(m)) && t >= s.start && t < s.end).length;
+                    if (mCount + (isAll ? 1 : 0) >= 2) doubles.push(m);
+                });
+                return doubles;
+            }
             return [];
         }
 
@@ -5609,12 +5805,16 @@ Nal i jidgando jibeosamkin neol</textarea>
                 },
                 playerCover: {
                     url: playerCoverUrl
-                }
+                },
+                cursorTimeline: (Array.isArray(cursorTimeline) && cursorTimeline.length > 0) ? JSON.parse(JSON.stringify(cursorTimeline)) : []
             };
         }
 
         function applyLayoutState(pack) {
             currentStudioMode = pack.mode || 'youtube';
+            if (pack.cursorTimeline && Array.isArray(pack.cursorTimeline)) {
+                cursorTimeline = JSON.parse(JSON.stringify(pack.cursorTimeline));
+            }
             // if (pack.bgCover && pack.bgCover !== "") document.getElementById('os-canvas').style.backgroundImage = pack.bgCover;
             
             if (pack.wallpaper) {
@@ -6034,6 +6234,9 @@ Nal i jidgando jibeosamkin neol</textarea>
             let name = document.getElementById('save-project-name').value.trim();
             if(!name) return alert("Escribe un nombre.");
             saveMembersSetup();
+            let segsToSave = (currentEditorSegments && currentEditorSegments.length > 0)
+                ? currentEditorSegments
+                : ((currentLoadedProjectData && currentLoadedProjectData.editorSegments) ? currentLoadedProjectData.editorSegments : generateEditorSegmentsFromRecordedTimeline(recordedTimeline, membersData.length));
             await idbSet("projects", name, {
                 title: document.getElementById('song-title').value,
                 font: document.getElementById('font-selector').value,
@@ -6042,7 +6245,7 @@ Nal i jidgando jibeosamkin neol</textarea>
                 recordedTimeline: recordedTimeline, lyricTimeline: lyricTimeline, allAvatarImage: allAvatarImage,
                 coroEntries: coroEntries, // Guardar coros en el proyecto
                 cursorTimeline: cursorTimeline, // Recorrido del mouse (cursor falso)
-                editorSegments: (currentLoadedProjectData && currentLoadedProjectData.editorSegments) ? currentLoadedProjectData.editorSegments : undefined
+                editorSegments: segsToSave
             });
             await loadDropdownsMenus();
             alert(`¡Proyecto "${name}" guardado!`);
@@ -6055,6 +6258,7 @@ Nal i jidgando jibeosamkin neol</textarea>
             let selected = document.getElementById('memory-project-selector').value;
             let p = await idbGet("projects", selected); if(!p) return;
             currentLoadedProjectData = p;
+            currentEditorSegments = (p.editorSegments && Array.isArray(p.editorSegments)) ? p.editorSegments : null;
             document.getElementById('song-title').value = p.title || "";
             document.getElementById('font-selector').value = p.font || "'Poppins', sans-serif";
             document.getElementById('lyrics-input').value = p.lyricsText || "";
