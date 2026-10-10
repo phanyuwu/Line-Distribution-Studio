@@ -556,6 +556,7 @@
                         <span>Clip Seleccionado</span>
                         <span id="multi-select-badge" style="display:none; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 2px 8px; font-size: 10px; font-weight: 600;"></span>
                     </div>
+                    <div id="prop-overlap-notice" style="display:none; margin: 4px 0 8px; font-size: 11px; color: #ff2d75; background: rgba(255, 45, 117, 0.1); border: 1px solid rgba(255, 45, 117, 0.3); border-radius: 8px; padding: 6px 10px; font-weight: 500; line-height: 1.4;"></div>
                     
                     <div class="prop-group">
                         <label class="prop-label">Integrante</label>
@@ -863,144 +864,119 @@ function convertTimelineToSegments(recordedTimeline, numMembers) {
     
     let extractedSegments = [];
     let idCounter = 1;
+    let activeSpans = {};
 
-    let allStart = null;
-    let memberStarts = new Array(numMembers).fill(null);
-
-    let firstLog = recordedTimeline[0];
-    if (firstLog && firstLog.timestamp >= 0) {
-        if (firstLog.activeIdFlag === 'all') {
-            allStart = 0;
+    function startSpan(key, t) {
+        if (!activeSpans[key]) {
+            activeSpans[key] = { start: t, lastActiveTime: t };
         } else {
-            for (let m = 0; m < numMembers; m++) {
-                let snap = firstLog.snapshot[m] || 0;
-                if (snap > 0) memberStarts[m] = 0;
-            }
+            activeSpans[key].lastActiveTime = t;
         }
     }
 
-    for (let i = 1; i < recordedTimeline.length; i++) {
-        let prev = recordedTimeline[i-1];
-        let curr = recordedTimeline[i];
-        let dt = curr.timestamp - prev.timestamp;
-        if (dt <= 0) continue;
-
-        // Comprueba si este frame corresponde al bloque grupal "ALL"
-        let isAllActive = (curr.activeIdFlag === 'all');
-        if (!isAllActive && numMembers > 1) {
-            let allSinging = true;
-            for (let m = 0; m < numMembers; m++) {
-                let dVoice = (curr.snapshot[m] || 0) - (prev.snapshot[m] || 0);
-                if (dVoice <= dt * 0.05) { allSinging = false; break; }
-            }
-            if (allSinging) isAllActive = true;
-        }
-
-        // Transición de ALL
-        if (isAllActive && allStart === null) {
-            allStart = prev.timestamp;
-        } else if (!isAllActive && allStart !== null) {
-            if (prev.timestamp - allStart >= 0.04) {
-                extractedSegments.push({
-                    id: 'seg_' + (idCounter++),
-                    memberIdx: 'all',
-                    start: Math.round(allStart * 1000) / 1000,
-                    end: Math.round(prev.timestamp * 1000) / 1000
-                });
-            }
-            allStart = null;
-        }
-
-        // Transiciones individuales de cada integrante
-        for (let m = 0; m < numMembers; m++) {
-            let dVoice = (curr.snapshot[m] || 0) - (prev.snapshot[m] || 0);
-            let isDoubleFromLog = curr.doubleActiveMembers && curr.doubleActiveMembers.includes(m);
-            let isSingingIndividually = isAllActive 
-                ? (isDoubleFromLog || dVoice > dt * 1.15) 
-                : (dVoice > dt * 0.05);
-
-            if (isSingingIndividually && memberStarts[m] === null) {
-                memberStarts[m] = prev.timestamp;
-            } else if (!isSingingIndividually && memberStarts[m] !== null) {
-                if (prev.timestamp - memberStarts[m] >= 0.04) {
+    function checkCloseSpans(currentTime, forceAll = false) {
+        Object.keys(activeSpans).forEach(key => {
+            let span = activeSpans[key];
+            if (!span) return;
+            // Tolerancia de 0.15s para evitar que caídas de 1 frame dividan un bloque
+            if (forceAll || (currentTime - span.lastActiveTime > 0.15)) {
+                let dur = span.lastActiveTime - span.start;
+                if (dur >= 0.08) {
                     extractedSegments.push({
                         id: 'seg_' + (idCounter++),
-                        memberIdx: m,
-                        start: Math.round(memberStarts[m] * 1000) / 1000,
-                        end: Math.round(prev.timestamp * 1000) / 1000
+                        memberIdx: key === 'all' ? 'all' : parseInt(key),
+                        start: Math.round(span.start * 1000) / 1000,
+                        end: Math.round(span.lastActiveTime * 1000) / 1000
                     });
                 }
-                memberStarts[m] = null;
+                delete activeSpans[key];
             }
-        }
-    }
-    
-    let lastTime = recordedTimeline[recordedTimeline.length-1].timestamp;
-    if (allStart !== null && lastTime - allStart >= 0.04) {
-        extractedSegments.push({
-            id: 'seg_' + (idCounter++),
-            memberIdx: 'all',
-            start: Math.round(allStart * 1000) / 1000,
-            end: Math.round(lastTime * 1000) / 1000
         });
     }
-    for (let m = 0; m < numMembers; m++) {
-        if (memberStarts[m] !== null && lastTime - memberStarts[m] >= 0.04) {
-            extractedSegments.push({
-                id: 'seg_' + (idCounter++),
-                memberIdx: m,
-                start: Math.round(memberStarts[m] * 1000) / 1000,
-                end: Math.round(lastTime * 1000) / 1000
-            });
+
+    for (let i = 0; i < recordedTimeline.length; i++) {
+        let log = recordedTimeline[i];
+        let t = log.timestamp;
+        let flag = log.activeIdFlag;
+        let activeKeysThisLog = new Set();
+
+        if (flag === 'all') {
+            activeKeysThisLog.add('all');
+        } else if (flag === 'overlap' && Array.isArray(log.overlapSnapshotArray)) {
+            // Si el modo overlap contenía todos los integrantes y no había líneas individuales específicas
+            if (log.overlapSnapshotArray.length === numMembers && numMembers > 1) {
+                activeKeysThisLog.add('all');
+            } else {
+                log.overlapSnapshotArray.forEach(m => activeKeysThisLog.add(String(m)));
+            }
+        } else if (typeof flag === 'number' && flag >= 0) {
+            activeKeysThisLog.add(String(flag));
+        } else if (typeof flag === 'string' && flag.startsWith('su_')) {
+            let subUnits = log.currentSubUnitsLayout || originalProjectData?.subUnitsLayout || [];
+            let targetSu = subUnits.find(s => s.suId === flag);
+            if (targetSu && membersData) {
+                membersData.forEach((m, idx) => {
+                    if (targetSu.membersList && targetSu.membersList.includes(m.name)) {
+                        activeKeysThisLog.add(String(idx));
+                    }
+                });
+            }
         }
+
+        // Si el log contiene doubleActiveMembers, también registrar esos integrantes individualmente
+        if (Array.isArray(log.doubleActiveMembers)) {
+            log.doubleActiveMembers.forEach(m => activeKeysThisLog.add(String(m)));
+        }
+
+        activeKeysThisLog.forEach(key => startSpan(key, t));
+        checkCloseSpans(t, false);
     }
-    
+
+    if (recordedTimeline.length > 0) {
+        let lastT = recordedTimeline[recordedTimeline.length - 1].timestamp;
+        checkCloseSpans(lastT, true);
+    }
+
+    extractedSegments.sort((a, b) => a.start - b.start);
     return extractedSegments;
 }
 
 function convertSegmentsToTimeline(segments, numMembers, originalTimeline) {
-    let newTimeline = [];
-    let currentSnapshot = new Array(numMembers).fill(0);
+    if (!segments || segments.length === 0) return [];
     
-    let baseTimestamps = (originalTimeline && originalTimeline.length > 0)
-        ? originalTimeline.map(log => log.timestamp)
-        : [];
-        
     let maxSegmentTime = segments.reduce((max, seg) => Math.max(max, seg.end), 0);
-    let lastOriginalTime = baseTimestamps.length > 0 ? baseTimestamps[baseTimestamps.length - 1] : 0;
-    
-    if (baseTimestamps.length === 0 || maxSegmentTime > lastOriginalTime) {
-        let t = lastOriginalTime;
-        while (t < maxSegmentTime + 0.1) {
-            t += 0.030;
-            baseTimestamps.push(Math.round(t * 1000) / 1000);
-        }
+    let duration = maxSegmentTime;
+    if (mediaPlayer && mediaPlayer.duration && !isNaN(mediaPlayer.duration) && mediaPlayer.duration > duration) {
+        duration = mediaPlayer.duration;
     }
     
-    let lastTime = 0;
+    let newTimeline = [];
+    let currentSnapshot = new Array(numMembers).fill(0);
     let subUnitsLayout = originalProjectData?.currentSubUnitsLayout || originalProjectData?.subUnitsLayout || [];
 
-    for (let i = 0; i < baseTimestamps.length; i++) {
-        let currTime = baseTimestamps[i];
+    const step = 0.033; // Muestreo uniforme (~30 fps) para fluidez absoluta y evitar micro-jitter
+    let t = 0;
+    let lastTime = 0;
+
+    while (t <= duration + 0.1) {
+        let currTime = Math.round(t * 1000) / 1000;
         let delta = currTime - lastTime;
         if (delta < 0) delta = 0;
+        let midPoint = lastTime + (delta / 2);
 
         let activeMembers = [];
         let doubleActiveMembers = [];
-        let midPoint = lastTime + (delta / 2);
 
         // ¿Está activo el bloque ALL?
         let isAllActive = segments.some(seg => seg.memberIdx === 'all' && midPoint >= seg.start && midPoint < seg.end);
 
         for (let m = 0; m < numMembers; m++) {
-            // Contar cuántos bloques activos tiene este integrante m:
-            // 1. Clips propios del integrante m
-            let mSpecificCount = segments.filter(seg => seg.memberIdx == m && midPoint >= seg.start && midPoint < seg.end).length;
-            // 2. Si el bloque ALL está activo, suma 1 clip para todos
+            // Contar cuántos bloques activos tiene este integrante m
+            let mSpecificCount = segments.filter(seg => (seg.memberIdx == m || String(seg.memberIdx) === String(m)) && midPoint >= seg.start && midPoint < seg.end).length;
             let totalCountForM = mSpecificCount + (isAllActive ? 1 : 0);
 
             if (totalCountForM > 0) {
-                // Si están interpuestos (totalCountForM >= 2), se cuenta doble (o múltiple)
+                // Cuenta doble si dos o más bloques están interpuestos
                 currentSnapshot[m] += delta * totalCountForM;
                 activeMembers.push(m);
 
@@ -1030,11 +1006,12 @@ function convertSegmentsToTimeline(segments, numMembers, originalTimeline) {
             activeIdFlag: flag,
             overlapSnapshotArray: overlapList,
             doubleActiveMembers: [...doubleActiveMembers], // Integrantes con líneas interpuestas (segundo anillo en Studio)
-            snapshot: [...currentSnapshot],
+            snapshot: currentSnapshot.map(s => Math.round(s * 1000) / 1000),
             currentSubUnitsLayout: subUnitsLayout
         });
 
         lastTime = currTime;
+        t += step;
     }
     
     return newTimeline;
@@ -1098,7 +1075,20 @@ function drawSegment(seg) {
     const isAll = seg.memberIdx === 'all';
     const member = isAll ? null : membersData[seg.memberIdx];
     const color = isAll ? 'var(--accent, #FF8EBE)' : (member ? member.color : '#FF8EBE');
-    const name = isAll ? 'ALL (Todos)' : (member ? member.name : 'Clip');
+    let name = isAll ? 'ALL (Todos)' : (member ? member.name : 'Clip');
+
+    // Comprueba si este bloque está interpuesto (overlap con ALL o con otro clip de la misma voz)
+    let isDoubleOverlapping = false;
+    if (isAll) {
+        isDoubleOverlapping = segments.some(s => s.id !== seg.id && s.memberIdx !== 'all' && Math.max(s.start, seg.start) < Math.min(s.end, seg.end));
+    } else {
+        isDoubleOverlapping = segments.some(s => s.id !== seg.id && (s.memberIdx === 'all' || String(s.memberIdx) === String(seg.memberIdx)) && Math.max(s.start, seg.start) < Math.min(s.end, seg.end));
+    }
+
+    // Si dos o más clips se interponen en el MISMO carril, dividirlos en altura para que ambos sean visibles y editables
+    let sameTrackOverlaps = segments.filter(s => String(s.memberIdx) === String(seg.memberIdx) && Math.max(s.start, seg.start) < Math.min(s.end, seg.end));
+    let isSplitVertical = sameTrackOverlaps.length > 1;
+    let verticalIndex = isSplitVertical ? sameTrackOverlaps.indexOf(seg) : 0;
 
     const el = document.createElement('div');
     el.className = `segment ${selectedSegmentIds.has(seg.id) ? 'selected' : ''}`;
@@ -1107,17 +1097,25 @@ function drawSegment(seg) {
     const leftPx = seg.start * zoomLevel;
     const widthPx = (seg.end - seg.start) * zoomLevel;
     const trackRow = getTrackRow(seg.memberIdx);
-    const topPx = trackRow * 50 + 4;
+    const baseTop = trackRow * 50 + 4;
+    const topPx = isSplitVertical ? baseTop + (verticalIndex % 2 === 1 ? 22 : 0) : baseTop;
+    const heightPx = isSplitVertical ? 20 : 42;
 
     el.style.left = leftPx + 'px';
     el.style.width = widthPx + 'px';
     el.style.top = topPx + 'px';
+    el.style.height = heightPx + 'px';
     el.style.border = `1px solid ${color}`;
+    if (isDoubleOverlapping) {
+        el.style.boxShadow = `0 0 6px ${color}, 0 2px 6px rgba(0,0,0,0.35)`;
+    }
+
+    let displayName = (isDoubleOverlapping ? '⚡ 2x ' : '') + name;
 
     el.innerHTML = `
         <div class="segment-bg" style="background: ${color}"></div>
         <div class="handle handle-left" data-action="resize-l"></div>
-        <div class="segment-label" data-action="move">${name}</div>
+        <div class="segment-label" data-action="move" title="${isDoubleOverlapping ? 'Bloque interpuesto: tiempo doble (2x) y segundo anillo en Studio' : name}">${displayName}</div>
         <div class="handle handle-right" data-action="resize-r"></div>
     `;
 
@@ -1390,6 +1388,23 @@ function syncInspector() {
     document.getElementById('prop-member').value = String(seg.memberIdx);
     document.getElementById('prop-start').value = seg.start.toFixed(3);
     document.getElementById('prop-end').value = seg.end.toFixed(3);
+
+    const notice = document.getElementById('prop-overlap-notice');
+    if (notice) {
+        let isDoubleOverlapping = false;
+        if (seg.memberIdx === 'all') {
+            isDoubleOverlapping = segments.some(s => s.id !== seg.id && s.memberIdx !== 'all' && Math.max(s.start, seg.start) < Math.min(s.end, seg.end));
+        } else {
+            isDoubleOverlapping = segments.some(s => s.id !== seg.id && (s.memberIdx === 'all' || String(s.memberIdx) === String(seg.memberIdx)) && Math.max(s.start, seg.start) < Math.min(s.end, seg.end));
+        }
+
+        if (isDoubleOverlapping) {
+            notice.style.display = 'block';
+            notice.innerHTML = `⚡ <strong>Bloque interpuesto (Doble 2x)</strong>: Este tramo se cruza con otra voz o con ALL. Su tiempo contará doble (2x) y encenderá el segundo anillo fino exterior en el avatar.`;
+        } else {
+            notice.style.display = 'none';
+        }
+    }
 }
 
 function updateSelectedSegment() {
@@ -1653,6 +1668,13 @@ async function processSaveToDB() {
     let newName = document.getElementById('export-name').value.trim();
     if (!newName) newName = "Proyecto Editado";
     
+    // Sanitizar y redondear tiempos para máxima precisión y estabilidad
+    segments.forEach(s => {
+        s.start = Math.max(0, Math.round(s.start * 1000) / 1000);
+        s.end = Math.max(s.start + 0.05, Math.round(s.end * 1000) / 1000);
+    });
+    segments.sort((a, b) => a.start - b.start);
+
     let newTimelineFormat = convertSegmentsToTimeline(segments, membersData.length, originalProjectData.recordedTimeline);
     
     const modifiedProject = JSON.parse(JSON.stringify(originalProjectData));
