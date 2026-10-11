@@ -42,6 +42,9 @@
     return id;
   };
   window.setInterval = function (fn, delay, ...args) {
+    // El index refresca el reloj de la barra cada 60 s SIN los segundos de la canción (muestra un minuto menos
+    // por un instante) y en tiempo real, no virtual. Al renderizar el reloj ya se actualiza en cada cuadro: se ignora.
+    if (typeof fn === 'function' && fn.name === 'updateStatusBarTime' && +delay === 60000) return 0;
     if (!V.on || typeof fn !== 'function') return R.setInterval(fn, delay, ...args);
     const id = V.nextId++;
     const every = Math.max(1, +delay || 0);
