@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Limpiador de Respaldo para GitHub</title>
+  <style>
+    body { font-family: sans-serif; background: #0f172a; color: #f8fafc; padding: 40px; max-width: 600px; margin: auto; }
+    .card { background: #1e293b; padding: 24px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+    input, select, button { width: 100%; padding: 10px; margin-top: 10px; margin-bottom: 20px; background: #334155; border: 1px solid #475569; color: white; border-radius: 6px; box-sizing: border-box; }
+    button { background: #ec4899; font-weight: bold; cursor: pointer; border: none; }
+    button:hover { background: #db2777; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>🧹 Limpiar Respaldo para la Nube</h2>
+    <p>Sube tu respaldo pesado y selecciona el proyecto y el layout que deseas conservar.</p>
+    
+    <label>1. Selecciona tu archivo JSON (respaldo):</label>
+    <input type="file" id="fileInput" accept=".json">
+
+    <div id="selectors" class="hidden">
+      <label>2. Selecciona el Proyecto:</label>
+      <select id="projectSelect"></select>
+
+      <label>3. Selecciona el Layout:</label>
+      <select id="layoutSelect"></select>
+
+      <button onclick="procesarRespaldo()">Generar y Descargar JSON Limpio</button>
+    </div>
+  </div>
+
+  <script>
+    let respaldoData = null;
+
+    document.getElementById('fileInput').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        respaldoData = JSON.parse(text);
+        
+        const projects = Object.keys(respaldoData.projects || {});
+        const layouts = Object.keys(respaldoData.layouts || {});
+
+        if (!projects.length) {
+          alert('El archivo no contiene proyectos válidos.');
+          return;
+        }
+
+        const projSelect = document.getElementById('projectSelect');
+        const laySelect = document.getElementById('layoutSelect');
+        
+        projSelect.innerHTML = projects.map(p => `<option value="${p}">${p}</option>`).join('');
+        laySelect.innerHTML = layouts.map(l => `<option value="${l}">${l}</option>`).join('');
+
+        document.getElementById('selectors').classList.remove('hidden');
+      } catch (err) {
+        alert('Error al leer el JSON: ' + err.message);
+      }
+    });
+
+    function procesarRespaldo() {
+      if (!respaldoData) return;
+
+      const selectedProj = document.getElementById('projectSelect').value;
+      const selectedLay = document.getElementById('layoutSelect').value;
+
+      const limpio = {
+        projects: {
+          [selectedProj]: respaldoData.projects[selectedProj]
+        },
+        layouts: selectedLay && respaldoData.layouts[selectedLay] ? {
+          [selectedLay]: respaldoData.layouts[selectedLay]
+        } : {}
+      };
+
+      const blob = new Blob([JSON.stringify(limpio, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `respaldo_${selectedProj.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.json`;
+      a.click();
+
+      alert('¡Listo! Se descargó tu JSON limpio con 1 solo proyecto y 1 solo layout.');
+    }
+  </script>
+</body>
+</html>
