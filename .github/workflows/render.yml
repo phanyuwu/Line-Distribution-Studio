@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       escala:
-        description: 'Escala de renderizado (ej. 1 o 1.5)'
+        description: 'Escala de renderizado (1 o 1.5)'
         required: true
         default: '1.5'
       modo_render:
@@ -17,21 +17,30 @@ on:
           - prueba_12s
           - rango_personalizado
       desde:
-        description: 'Desde (ej. 1:30) [Solo rango]'
+        description: 'Desde (ej. 1:30) [solo rango_personalizado]'
         required: false
         default: ''
       hasta:
-        description: 'Hasta (ej. 2:00) [Solo rango]'
+        description: 'Hasta (ej. 2:00) [solo rango_personalizado]'
+        required: false
+        default: ''
+      proyecto:
+        description: 'Nombre del proyecto (opcional; si el respaldo tiene uno solo se usa solo)'
+        required: false
+        default: ''
+      layout:
+        description: 'Nombre del layout (opcional; si el respaldo tiene uno solo se usa solo)'
         required: false
         default: ''
       url_mv:
-        description: 'Enlace de descarga directa del MV (opcional)'
+        description: 'Enlace de descarga directa del MV (opcional si ya está en Render-Studio como mv.mp4)'
         required: false
         default: ''
 
 jobs:
   render:
     runs-on: ubuntu-latest
+    timeout-minutes: 360
     steps:
       - name: Copiar repositorio
         uses: actions/checkout@v4
@@ -39,45 +48,76 @@ jobs:
       - name: Configurar Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: '22'
 
-      - name: Instalar dependencias del proyecto
-        run: npm install
+      - name: Instalar dependencias del proyecto (express y puppeteer-core)
+        run: npm install --no-audit --no-fund
 
-      - name: Instalar FFmpeg y Chromium en el servidor
+      - name: Instalar FFmpeg
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg chromium-browser
+          sudo apt-get install -y ffmpeg
+
+      - name: Comprobar Google Chrome
+        run: |
+          if [ ! -x /usr/bin/google-chrome ]; then
+            echo "::error::No encuentro /usr/bin/google-chrome en este servidor."
+            exit 1
+          fi
+          /usr/bin/google-chrome --version
+
+      - name: Preparar carpeta (index.html junto a render.js)
+        run: |
+          test -f Render-Studio/render.js || { echo "::error::No existe Render-Studio/render.js"; exit 1; }
+          cp index.html Render-Studio/index.html
 
       - name: Descargar MV si se proporcionó un enlace
-        if: "${{ github.event.inputs.url_mv != '' }}"
+        if: ${{ github.event.inputs.url_mv != '' }}
+        env:
+          URL_MV: ${{ github.event.inputs.url_mv }}
         run: |
           echo "Descargando MV..."
-          curl -L "${{ github.event.inputs.url_mv }}" -o Render_Studio/mv.mp4
+          curl -L --fail --retry 3 "$URL_MV" -o Render-Studio/mv.mp4
+          ls -lh Render-Studio/mv.mp4
+          if ! ffprobe -v error -show_entries format=duration -of csv=p=0 Render-Studio/mv.mp4; then
+            echo "::error::El enlace no devolvió un video (¿Drive pidió confirmación o el archivo no es público?)."
+            exit 1
+          fi
 
       - name: Ejecutar script de renderizado
-        run: |
-          CMD="node render.js --carpeta ./Render_Studio --escala ${{ github.event.inputs.escala }} --preset veryfast"
-          
-          if [ "${{ github.event.inputs.modo_render }}" = "prueba_12s" ]; then
-            CMD="$CMD --prueba"
-          elif [ "${{ github.event.inputs.modo_render }}" = "rango_personalizado" ]; then
-            if [ -n "${{ github.event.inputs.desde }}" ]; then
-              CMD="$CMD --desde '${{ github.event.inputs.desde }}'"
-            fi
-            if [ -n "${{ github.event.inputs.hasta }}" ]; then
-              CMD="$CMD --hasta '${{ github.event.inputs.hasta }}'"
-            fi
-          fi
-          
-          echo "Ejecutando: $CMD"
-          eval $CMD
         env:
-          CHROMIUM_PATH: /usr/bin/chromium-browser
+          CHROMIUM_PATH: /usr/bin/google-chrome
+          ESCALA: ${{ github.event.inputs.escala }}
+          MODO: ${{ github.event.inputs.modo_render }}
+          DESDE: ${{ github.event.inputs.desde }}
+          HASTA: ${{ github.event.inputs.hasta }}
+          PROYECTO: ${{ github.event.inputs.proyecto }}
+          LAYOUT: ${{ github.event.inputs.layout }}
+        run: |
+          ARGS=(--carpeta ./Render-Studio --escala "$ESCALA" --preset veryfast)
+
+          if [ "$MODO" = "prueba_12s" ]; then
+            ARGS+=(--prueba)
+          elif [ "$MODO" = "rango_personalizado" ]; then
+            if [ -z "$DESDE" ] && [ -z "$HASTA" ]; then
+              echo "::error::Elegiste rango_personalizado: llena 'Desde' y/o 'Hasta'."
+              exit 1
+            fi
+            if [ -n "$DESDE" ]; then ARGS+=(--desde "$DESDE"); fi
+            if [ -n "$HASTA" ]; then ARGS+=(--hasta "$HASTA"); fi
+          fi
+
+          if [ -n "$PROYECTO" ]; then ARGS+=(--proyecto "$PROYECTO"); fi
+          if [ -n "$LAYOUT" ]; then ARGS+=(--layout "$LAYOUT"); fi
+
+          echo "Ejecutando: node Render-Studio/render.js ${ARGS[*]}"
+          node Render-Studio/render.js "${ARGS[@]}"
 
       - name: Subir video final como artefacto
         uses: actions/upload-artifact@v4
         with:
           name: video-line-distribution
-          path: Render_Studio/salida/*.mp4
+          path: Render-Studio/salida/*.mp4
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
