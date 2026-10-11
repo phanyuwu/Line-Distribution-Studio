@@ -97,6 +97,9 @@ async function pick(title, names, wanted, allowNone) {
     return m;
   }
   if (!names.length) return null;
+  // Una sola opción (proyecto único) o ejecución sin teclado (GitHub Actions): no se puede/ni hace falta preguntar
+  if (names.length === 1 && (!allowNone || !process.stdin.isTTY)) { console.log(`\n${title}\n  → "${names[0]}" (es la única, se usa automáticamente)`); return names[0]; }
+  if (!process.stdin.isTTY) fail(`${title.replace(/\?$/, '')}: hay varias opciones y no puedo preguntarte aquí. Indica una con --proyecto o --layout.\n   Opciones: ${names.join(' | ')}`);
   console.log('\n' + title);
   if (allowNone) console.log('  0) (ninguno)');
   names.forEach((n, i) => console.log(`  ${i + 1}) ${n}`));
