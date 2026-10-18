@@ -1,0 +1,41 @@
+name: Compresor de Video Line Distribution
+on:
+  workflow_dispatch: # Activa el botón manual
+
+jobs:
+  compress:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar el repositorio
+        uses: actions/checkout@v4
+
+      - name: Instalar FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg jq
+
+      - name: Descargar Video de la Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Obtiene de forma automática el enlace del último archivo de video subido a Releases
+          VIDEO_URL=$(gh api repos/${{ github.repository }}/releases/latest | jq -r '.assets[] | select(.name | endswith(".mp4")) | .browser_download_url' | head -n 1)
+          if [ -z "$VIDEO_URL" ] || [ "$VIDEO_URL" == "null" ]; then
+            echo "Error: No se encontró ningún archivo .mp4 en la última Release."
+            exit 1
+          fi
+          echo "Descargando video pesado desde: $VIDEO_URL"
+          curl -L -o video_pesado.mp4 "$VIDEO_URL"
+
+      - name: Crear carpeta temporal y Comprimir Video
+        run: |
+          mkdir -p dist
+          # Comprime usando H.265 optimizado para resplandores (glow) y movimiento continuo
+          ffmpeg -i video_pesado.mp4 -c:v libx265 -crf 22 -c:a aac -b:a 128k dist/video_final_youtube.mp4
+
+      - name: Guardar Video Comprimido
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-listo-youtube
+          path: dist/video_final_youtube.mp4
+          compression-level: 0
